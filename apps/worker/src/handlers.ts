@@ -87,11 +87,7 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
         qs: string;
         qe: string;
       }>(sql`
-        SELECT p.id, p.tz, p.locale, p.call_window_start::text AS ws, p.call_window_end::text AS we,
-               cc.quiet_start::text AS qs, cc.quiet_end::text AS qe
-          FROM care.patient p
-          JOIN care.contact_consent cc ON cc.patient_id = p.id AND cc.channel = 'voice' AND cc.withdrawn_at IS NULL
-         WHERE p.status = 'active'`);
+        SELECT id, tz, locale, ws, we, qs, qe FROM care.callable_patient`);
       const ids: string[] = [];
       for (const r of rows) {
         const d = isDue(

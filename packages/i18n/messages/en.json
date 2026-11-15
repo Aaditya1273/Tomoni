@@ -266,6 +266,27 @@
       "asRep": "You are signing as {name}'s legal representative.",
       "joinedNow": "Thank you. You can leave at any time from this page.",
       "none": "No study is open right now."
+    },
+    "plan": {
+      "title": "Daily calls for {name}",
+      "active": "On",
+      "past_due": "Payment due",
+      "offer": "Tomoni calls {name} every day in their language, checks on their medicines and tells you what it hears. {price} a month, paid by you. Cancel any time.",
+      "start": "Start daily calls",
+      "startSandbox": "Start daily calls (sandbox, no charge)",
+      "opening": "Opening checkout…",
+      "failed": "That didn't work. Nothing was charged. Try again in a minute.",
+      "activeBody": "Daily calls are on. {price} a month.",
+      "activeUntil": "Daily calls are on. The next payment of {price} is on {date}.",
+      "pastDueBody": "This month's payment didn't go through. Calls to {name} continue while the card is tried again; check the card on your payment account.",
+      "notice": {
+        "done": "Thank you. Daily calls are on; the first one comes in the next call window.",
+        "canceled": "Checkout was closed. Nothing was charged."
+      },
+      "mockTitle": "Sandbox checkout",
+      "mockBody": "This page stands in for the payment provider. It asks for no card, and no money moves.",
+      "mockPay": "Complete sandbox payment",
+      "mockCancel": "Go back without paying"
     }
   },
   "desk": {

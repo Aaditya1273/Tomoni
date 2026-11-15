@@ -81,6 +81,7 @@ const familyPatients = (db: Db, s: RequestScope) =>
       name: schema.patient.name,
       preferredName: schema.patient.preferredName,
       region: schema.household.region,
+      householdId: schema.patient.householdId,
     })
     .from(schema.patient)
     .innerJoin(schema.household, eq(schema.household.id, schema.patient.householdId))
@@ -157,6 +158,7 @@ export const familyRoutes =
                 id: p.id,
                 name: p.preferredName ?? p.name,
                 region: p.region,
+                householdId: p.householdId,
                 access: worst(ws.map((w) => w.access)),
                 medicare: link ? { mode: link.mode, lastSyncedAt: iso(link.lastSyncedAt) } : null,
                 medicines: meds

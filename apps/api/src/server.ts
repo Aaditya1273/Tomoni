@@ -1,3 +1,5 @@
+import { billingRoutes } from './billing/routes';
+import type { BillingProvider } from './billing/provider';
 import { setRoute } from '@tomoni/telemetry';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
@@ -41,6 +43,8 @@ export interface BuildOptions {
   blueButton?: BlueButton;
   /** Tests inject the conversation LLM; otherwise TOMONI_ADAPTER_LLM decides. */
   llm?: ConversationLLM;
+  /** Tests inject a payment provider; otherwise TOMONI_ADAPTER_BILLING decides. */
+  billing?: BillingProvider;
 }
 
 export async function buildServer(opts: BuildOptions = {}) {
@@ -146,6 +150,13 @@ export async function buildServer(opts: BuildOptions = {}) {
   await app.register(familyMedicineRoutes({ queue }));
   await app.register(researchRoutes({ queue }));
   await app.register(sponsorRoutes);
+  await app.register(
+    billingRoutes({
+      publicOrigin: config.publicOrigin,
+      mockCheckout: config.simulator,
+      ...(opts.billing ? { provider: opts.billing } : {}),
+    }),
+  );
   if (config.twilio) await app.register(twilioRoutes({ ...config.twilio, llm }));
   return app;
 }

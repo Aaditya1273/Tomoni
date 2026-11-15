@@ -85,7 +85,13 @@ export async function sessionPlugin(app: FastifyInstance, opts: { allowedOrigins
     const token = req.cookies[SESSION_COOKIE];
     req.auth = token ? await resolveSession(token) : null;
 
-    if (!UNSAFE.has(req.method) || req.url.startsWith('/api/voice/')) return; // voice webhooks: signature-checked (Phase 3)
+    // Provider webhooks carry their own signatures (Twilio, Stripe), not a browser origin.
+    if (
+      !UNSAFE.has(req.method) ||
+      req.url.startsWith('/api/voice/') ||
+      req.url.startsWith('/api/billing/webhook/')
+    )
+      return;
     const origin = req.headers.origin;
     if (!origin || !opts.allowedOrigins.includes(origin)) {
       return reply.code(403).send({ error: 'bad_origin', message: 'Request origin not allowed.' });

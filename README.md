@@ -90,6 +90,7 @@ Details: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_MODEL](docs/DATA_MODEL.md
 | Drug shortages, pharmacy closures | Synthetic sample notices | Feeds to be chosen |
 | PGx lab results | Entered by the practice on the desk | Lab interface to be chosen |
 | Voice Lab speech features | `MockFeatureService` (labelled `mock-0`) | Built: `apps/ml` (`TOMONI_ADAPTER_FEATURES=real`); audio capture not built yet |
+| Family plan payments (India) | Mock checkout page, labelled, no card | Built: Stripe Checkout and signed webhooks (`TOMONI_ADAPTER_BILLING=real` + Stripe keys) |
 | Fax | None yet | Not planned before Go-Live |
 
 Real adapters refuse to start unless `TOMONI_REAL_DATA_ENABLED=true`, and that flag stays off until legal sign-off.

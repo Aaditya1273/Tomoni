@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { HeartHandshake } from 'lucide-react';
-import type { Activity, FamilyCard } from '@tomoni/contracts';
+import type { Activity, BillingStatus, FamilyCard } from '@tomoni/contracts';
 import { EmptyState, Notice, StatusPill } from '@tomoni/ui';
 import { PrefsMenu } from '@tomoni/web-shared';
 import { apiGet, getPrefs, getSandbox, requireSurface } from '@tomoni/web-shared/server';
 import { Greeting } from '@/components/Greeting';
 import { ConnectMedicare } from '@/components/family/ConnectMedicare';
 import { AddMedicine } from '@/components/family/AddMedicine';
+import { FamilyPlan } from '@/components/family/FamilyPlan';
 import { ActionControls } from '@/components/family/ActionControls';
 import { LiveRefresh } from '@/components/LiveRefresh';
 import { warningWords } from '@/components/family/WarningText';
@@ -20,7 +21,7 @@ const NOTICES = ['connected', 'expired', 'declined', 'failed'] as const;
 export default async function FamilyToday({
   searchParams,
 }: {
-  searchParams: Promise<{ medicare?: string }>;
+  searchParams: Promise<{ medicare?: string; billing?: string }>;
 }) {
   const [me, prefs, t, f, sandbox, card, sp] = await Promise.all([
     requireSurface('family'),
@@ -34,6 +35,9 @@ export default async function FamilyToday({
   const activity = (await apiGet<Activity>('/api/family/activity')).data;
   const first = me.user.displayName.split(' ')[0] ?? me.user.displayName;
   const patients = card.data?.patients ?? [];
+  const plans = patients.some((p) => p.region === 'IN')
+    ? ((await apiGet<BillingStatus[]>('/api/family/billing')).data ?? [])
+    : [];
   const asOf = card.data?.asOf ?? '';
   const all = patients.flatMap((p) => p.warnings);
   const red = all.filter((w) => w.access === 'red').length;
@@ -41,6 +45,7 @@ export default async function FamilyToday({
   const notice = NOTICES.find((n) => n === sp.medicare);
   const statusWord = { red: t('statusRed'), amber: t('statusAmber'), green: t('statusGreen') };
   const bbMock = sandbox.mockAdapters.includes('bluebutton');
+  const billingNotice = sp.billing === 'done' || sp.billing === 'canceled' ? sp.billing : null;
 
   return (
     <main id="main" className="flex flex-1 flex-col gap-8 pt-10">
@@ -83,6 +88,9 @@ export default async function FamilyToday({
       {notice && (
         <Notice tone={notice === 'connected' ? 'ok' : 'watch'}>{t(`medicareNotice.${notice}`)}</Notice>
       )}
+      {billingNotice && (
+        <Notice tone={billingNotice === 'done' ? 'ok' : 'watch'}>{t(`plan.notice.${billingNotice}`)}</Notice>
+      )}
 
       {patients.length === 0 && (
         <EmptyState icon={<HeartHandshake aria-hidden />} title={t('emptyTitle')}>
@@ -91,7 +99,12 @@ export default async function FamilyToday({
       )}
 
       {await Promise.all(
-        patients.map(async (p) => {
+        patients.map(async (p, i) => {
+          // One plan per household, shown with its first parent.
+          const plan =
+            patients.findIndex((x) => x.householdId === p.householdId) === i
+              ? plans.find((x) => x.householdId === p.householdId && x.region === 'IN')
+              : undefined;
           const words = await Promise.all(p.warnings.map((w) => warningWords(w, asOf)));
           return (
             <section
@@ -178,7 +191,16 @@ export default async function FamilyToday({
               </div>
 
               {p.region === 'IN' ? (
-                <AddMedicine patientId={p.id} today={asOf} />
+                <>
+                  {plan && (
+                    <FamilyPlan
+                      plan={plan}
+                      name={p.name}
+                      sandbox={sandbox.mockAdapters.includes('billing')}
+                    />
+                  )}
+                  <AddMedicine patientId={p.id} today={asOf} />
+                </>
               ) : p.medicare ? (
                 <p className="text-sm text-muted">
                   {p.medicare.mode === 'mock' ? t('medicareConnectedMock') : t('medicareConnected')}

@@ -15,7 +15,7 @@
   - A sibling joins.
   - The care plan is signed and the month is billable.
   - Asha reads the week.
-- **Phase 4b (India bridge): first slice done.** A family abroad sees sourced warnings for a parent in India and adds medicines from the bill with a photo, end to end in Playwright (`e2e/india.spec.ts`). Still to come: family subscription billing, India-specific skills (reminders to see the local doctor), and the legal checks in D-027 before any India call.
+- **Phase 4b (India bridge): two slices done.** 4b.2: the family plan. Priya turns on daily calls through a (mock) checkout, end to end in Playwright; signed Stripe webhooks activate, renew, mark past-due and cancel; India calls are scheduled only with a live plan (D-030). A family abroad sees sourced warnings for a parent in India and adds medicines from the bill with a photo, end to end in Playwright (`e2e/india.spec.ts`). Still to come: India-specific skills (reminders to see the local doctor), and the legal checks in D-027 before any India call.
 - **Phase 5 (Research core): done** on 2026-11-15. Definition of Done:
   - Consent gating passes: no research data without active consent, and withdrawal hides it on the next statement.
   - Small-cell suppression passes: under 11 hidden, everything rounded to 5, secondary suppression, and a differencing attack fails.
@@ -88,6 +88,7 @@
 | 2026-11-15 | 6.2 Voice Lab | `packages/research` (`ResearchOnly<T>`, feature contract, nightly jobs), optional speech task on the call, research seconds apart from care seconds, `apps/ml` feature service | Unit, DB, API | `MockFeatureService` unless `TOMONI_ADAPTER_FEATURES=real` |
 | 2026-11-15 | 7.1 Performance | k6 read-latency and Lighthouse gates against seeded stacks; CSS inlined | k6, Lighthouse | — |
 | 2026-11-15 | 7.2 Operations | Dead letters, encrypted backups with a CI restore drill, OpenTelemetry, RUNBOOK, GO_LIVE_CHECKLIST, DEMO | Unit, drill | — |
+| 2026-11-15 | 4b.2 Family plan | Subscription table (family starts, only a verified webhook activates), Stripe Checkout and webhooks, mock checkout, call gating, plan card in English and Hindi | API, e2e + axe | `MockBilling` unless `TOMONI_ADAPTER_BILLING=real` |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests

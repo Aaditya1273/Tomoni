@@ -33,6 +33,7 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-027 | Second market: the India bridge, family-paid, research opening after 13 May 2027 | NEEDS-FOUNDER-REVIEW |
 | D-028 | Gene-drug warnings go to physicians only | NEEDS-FOUNDER-REVIEW |
 | D-029 | The speech task's words never enter the care record | Accepted |
+| D-030 | India family plan: $29 a month, Stripe Checkout, calls gated on payment with a past-due grace | NEEDS-FOUNDER-REVIEW |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -161,3 +162,12 @@ A pharmacogenomic result is clinical data the practice entered, so it lives in `
 
 ## D-029: The speech task's words never enter the care record
 The research speech task runs at the end of a clean daily call, and only with active speech-task consent. The safety matcher still runs first, so an emergency said during the task is handled as care. Otherwise the words go nowhere: the LLM never reads them, the care transcript stores `[research speech task]` instead, and the research sample keeps duration and features under the pseudonym. The care API records a sample only through `research.record_speech_sample()`, which needs a live call and checks consent itself, so it never touches the pseudonym table. Features from the mock are labelled `mock-0` and can't be mistaken for real ones.
+
+## D-030: India family plan (NEEDS-FOUNDER-REVIEW)
+In India there is no APCM, so the family abroad pays for the parent's daily call (STRATEGY "India bridge").
+
+- **Price:** $29 a month in USD, one plan per household (`TOMONI_FAMILY_PLAN_CENTS`). This is a placeholder. The STRATEGY kill criterion (70% retention at 3 months) is what tests it.
+- **Payments:** Stripe Checkout, with Stripe-hosted pages so card data never reaches Tomoni. Webhooks are signature-checked with a 5-minute tolerance, and each event is applied once. A labelled mock checkout stands in for the sandbox. Live keys refuse to start without `TOMONI_REAL_DATA_ENABLED`.
+- **Who can activate:** the family can only start a checkout. RLS lets the care role write a pending row with no provider ids; only a verified event, applied by the worker role, makes it active.
+- **Calls:** the scheduler dials India households only with an active or past-due plan (`care.callable_patient`). Past-due keeps calling through Stripe's retry window, so one failed card never silences a parent's check-in. Cancelling stops scheduled calls; an emergency said on any call is still handled.
+- **Still to decide:** the price, a free trial, INR pricing for families inside India, refunds, a self-service card update (Stripe's customer portal), and taxes (US sales tax, India GST if billed there).

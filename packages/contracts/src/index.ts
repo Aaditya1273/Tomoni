@@ -136,6 +136,7 @@ export const FamilyCard = z.object({
       id: z.uuid(),
       name: z.string(),
       region: z.enum(['US', 'IN']),
+      householdId: z.uuid(),
       access: AccessStatus,
       medicare: z
         .object({ mode: z.enum(['sandbox', 'mock', 'production']), lastSyncedAt: z.string().nullable() })
@@ -607,3 +608,13 @@ export const PgxResultBody = z.strictObject({
   lab: z.string().trim().min(2).max(120),
   reportedAt: z.iso.date(),
 });
+
+// ─── family billing (Phase 4b, D-030) ───────────────────────────────────────
+export const BillingStatus = z.object({
+  householdId: z.uuid(),
+  region: z.enum(['US', 'IN']),
+  status: z.enum(['none', 'pending', 'active', 'past_due', 'canceled']),
+  periodEnd: z.string().nullable(),
+  price: z.object({ cents: z.int(), currency: z.literal('USD') }),
+});
+export type BillingStatus = z.infer<typeof BillingStatus>;

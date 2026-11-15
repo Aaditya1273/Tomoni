@@ -49,3 +49,28 @@ test('Priya, in New Jersey, sees her mother’s medicines in Ahmedabad and adds 
   const res = await page.request.get((await photo.getAttribute('href'))!);
   expect(res.headers()['content-type']).toBe('image/png');
 });
+
+test('Priya turns on daily calls for her mother: the family pays, through checkout (D-030)', async ({
+  page,
+  isMobile,
+}, info) => {
+  test.skip(isMobile, 'state-changing; run once');
+  await signIn(page, 'priya@demo.tomoni.test');
+  const sunita = page.locator('section[data-patient="Sunita-ben"]');
+  const plan = sunita.locator('[data-plan-status]');
+  await expect(plan).toHaveAttribute('data-plan-status', 'none');
+  await expect(plan).toContainText('$29.00 a month, paid by you. Cancel any time.');
+  await plan.getByRole('button', { name: /Start daily calls/ }).click();
+
+  await expect(page.getByRole('heading', { name: 'Sandbox checkout' })).toBeVisible();
+  await expect(page.getByText('It asks for no card, and no money moves.')).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Complete sandbox payment' }).click();
+
+  await expect(page.getByText('Thank you. Daily calls are on')).toBeVisible();
+  await expect(plan).toHaveAttribute('data-plan-status', 'active');
+  await expect(plan).toContainText('Daily calls are on. The next payment of $29.00 is on');
+  await expect(plan.getByRole('button', { name: /Start daily calls/ })).toHaveCount(0);
+  await expectAccessible(page);
+  await snap(page, info, 'family-india-plan');
+});
