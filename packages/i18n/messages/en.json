@@ -127,6 +127,34 @@
       "fingerprint": "File fingerprint (SHA-256)",
       "openSource": "Open the source",
       "notFound": "This warning isn't available to you."
+    },
+    "act": {
+      "help": "Ask Tomoni to help",
+      "asking": "Asking…",
+      "approve": "Approve",
+      "notNow": "Not now",
+      "ask": {
+        "requestPharmacyTransfer": "Move {drug} to {toPharmacy}? Tomoni will contact both pharmacies and check the move went through."
+      },
+      "waitingDoctor": "Waiting for the doctor to sign.",
+      "working": "Tomoni is working on it.",
+      "rejected": "You said not now.",
+      "handoff": "A person on the Tomoni team is handling this.",
+      "failed": "Tomoni couldn't finish this. The care team will follow up.",
+      "done": {
+        "checkRefillStatus": {
+          "ready": "The pharmacy says it's ready for pickup.",
+          "in_progress": "The pharmacy is filling it now.",
+          "needs_renewal": "The pharmacy says it needs a new prescription.",
+          "not_found": "The pharmacy couldn't find this prescription."
+        },
+        "draftRenewalForDoctor": "The doctor signed the renewal. It's on its way to the pharmacy.",
+        "draftFormularyException": "The doctor signed a request asking the plan to keep covering it.",
+        "requestPharmacyTransfer": "Moved to {toPharmacy}.",
+        "findStock": "{found, plural, =0 {No nearby pharmacy has it right now.} one {# nearby pharmacy has it in stock.} other {# nearby pharmacies have it in stock.}}",
+        "comparePartDPlans": "For these medicines, the lowest-cost plan is {plan} at about {cost} a year. Plans are ranked by cost only.",
+        "bookPickup": "Pickup booked."
+      }
     }
   },
   "desk": {
@@ -179,12 +207,26 @@
     },
     "simFlagged": "Nurse flag raised: {class}",
     "simNoConsent": "This patient hasn't agreed to calls, so Tomoni won't call them.",
-    "simError": "Couldn't reach the call engine. Try again."
+    "simError": "Couldn't reach the call engine. Try again.",
+    "approvalsTitle": "Waiting for your signature",
+    "approvalsTitleStaff": "Waiting for the doctor",
+    "sign": "Sign",
+    "decline": "Decline",
+    "what": {
+      "draftRenewalForDoctor": "Renew {drug}",
+      "draftFormularyException": "Ask the plan to keep covering {drug}"
+    }
   },
   "ops": {
     "title": "Escalations",
     "emptyTitle": "No open escalations",
-    "emptyBody": "Calls the assistant hands over, and jobs that need a person, appear here."
+    "emptyBody": "Calls the assistant hands over, and jobs that need a person, appear here.",
+    "handoffsTitle": "Actions the agent handed over",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "skill": "Skill",
+    "patient": "Patient",
+    "since": "Since"
   },
   "sponsor": {
     "title": "Research partner portal",

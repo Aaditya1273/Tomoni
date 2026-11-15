@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@tomoni/agent": "workspace:*",
     "@tomoni/contracts": "workspace:*",
     "@tomoni/core": "workspace:*",
     "@tomoni/db": "workspace:*",

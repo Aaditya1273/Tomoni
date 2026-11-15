@@ -7,6 +7,8 @@ import { PrefsMenu } from '@tomoni/web-shared';
 import { apiGet, getPrefs, getSandbox, requireSurface } from '@tomoni/web-shared/server';
 import { Greeting } from '@/components/Greeting';
 import { ConnectMedicare } from '@/components/family/ConnectMedicare';
+import { ActionControls } from '@/components/family/ActionControls';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { warningWords } from '@/components/family/WarningText';
 import { day, drugName, statusOf } from '@/lib/medicines';
 
@@ -40,6 +42,7 @@ export default async function FamilyToday({
 
   return (
     <main id="main" className="flex flex-1 flex-col gap-8 pt-10">
+      <LiveRefresh topics={['action.proposed', 'action.succeeded', 'action.handoff', 'flag.created']} />
       <div className="flex flex-col gap-2">
         <Greeting name={first} />
         {patients.length > 0 && (
@@ -93,6 +96,13 @@ export default async function FamilyToday({
                         {words[i]!.when}
                       </StatusPill>
                       <p className="text-pretty">{words[i]!.sentence}</p>
+                      <ActionControls
+                        warningId={w.id}
+                        drug={w.drug ? drugName(w.drug) : ''}
+                        {...(p.actions.findLast((a) => a.warningId === w.id)
+                          ? { action: p.actions.findLast((a) => a.warningId === w.id)! }
+                          : {})}
+                      />
                       <p className="text-sm text-muted">
                         {words[i]!.source}.{' '}
                         <Link

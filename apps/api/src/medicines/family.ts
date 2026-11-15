@@ -21,6 +21,7 @@ import {
 import { audit, pool, schema, withScope, type Db } from '@tomoni/db';
 import { blueButtonFromEnv, mockBeneficiaryId, pkce, today, worst, type BlueButton } from '@tomoni/medicines';
 import { newToken, requireAuth } from '../auth/session';
+import { actionItems } from '../actions/view';
 
 const FAMILY_ROLES = ['family_member', 'patient', 'representative'] as const;
 const STATE_TTL_S = 600;
@@ -125,6 +126,11 @@ export const familyRoutes =
             .select()
             .from(schema.bluebuttonLink)
             .where(and(inArray(schema.bluebuttonLink.patientId, ids), sql`revoked_at IS NULL`));
+          const actions = await actionItems(
+            db,
+            sql`a.patient_id = ANY(${sql.param(ids)}::uuid[]) AND a.state <> 'cancelled'
+                AND a.updated_at > now() - interval '30 days'`,
+          );
           for (const id of ids)
             await audit(db, {
               action: 'read',
@@ -152,6 +158,7 @@ export const familyRoutes =
                     access: worst(ws.filter((w) => w.medicationId === m.id).map((w) => w.access)),
                   })),
                 warnings: ws,
+                actions: actions.filter((a) => a.patientId === p.id),
               };
             }),
           };

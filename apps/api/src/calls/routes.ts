@@ -13,6 +13,9 @@ import {
 } from '@tomoni/contracts';
 import { audit, schema, withScope } from '@tomoni/db';
 import { llmFromEnv, type ConversationLLM } from '@tomoni/voice';
+import type { Queue } from 'bullmq';
+import { systemScope } from '@tomoni/core';
+import { proposeForWarning } from '@tomoni/agent';
 import { requireAuth, type AuthContext } from '../auth/session';
 import { beginCall, CallError, callTurn } from './service';
 
@@ -20,7 +23,7 @@ const STAFF = ['physician', 'nurse', 'front_desk'] as const;
 const STATUS: Record<CallError['code'], number> = { not_found: 404, no_contact_consent: 409, ended: 409 };
 
 export const callRoutes =
-  (deps: { llm?: ConversationLLM; simulator: boolean }): FastifyPluginAsyncZod =>
+  (deps: { llm?: ConversationLLM; simulator: boolean; queue?: Queue }): FastifyPluginAsyncZod =>
   async (app) => {
     const llm = deps.llm ?? llmFromEnv();
     const staff = requireAuth({ roles: [...STAFF] });
@@ -224,9 +227,18 @@ export const callRoutes =
       },
       async (req, reply) => {
         try {
-          return await withScope('app', req.auth!.scope, (db) =>
+          const r = await withScope('app', req.auth!.scope, (db) =>
             callTurn(db, req.params.id, req.body.text, llm, 'simulator'),
           );
+          // "Yes, help me with that" on the call proposes the warning's skill (rule 2.2: closed table).
+          for (const w of r.helpWanted) {
+            const proposed = await withScope('worker', systemScope('agent'), (db) =>
+              proposeForWarning(db, w, 'call'),
+            );
+            for (const p of proposed.filter((x) => x.created && x.state === 'approved'))
+              await deps.queue?.add('action.run', { actionId: p.id });
+          }
+          return r;
         } catch (e) {
           const f = fail(e);
           return reply.code(f.status as 404).send(f.body);

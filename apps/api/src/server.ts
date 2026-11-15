@@ -25,6 +25,7 @@ import { adminRoutes } from './medicines/admin';
 import { eventRoutes } from './events/routes';
 import { callRoutes } from './calls/routes';
 import { twilioRoutes } from './calls/twilio';
+import { actionRoutes } from './actions/routes';
 import { llmFromEnv } from '@tomoni/voice';
 
 export interface BuildOptions {
@@ -130,7 +131,8 @@ export async function buildServer(opts: BuildOptions = {}) {
   await app.register(adminRoutes({ queue }));
   await app.register(eventRoutes(config.redisUrl));
   const llm = opts.llm ?? llmFromEnv();
-  await app.register(callRoutes({ simulator: config.simulator, llm }));
+  await app.register(callRoutes({ simulator: config.simulator, llm, queue }));
+  await app.register(actionRoutes({ queue }));
   if (config.twilio) await app.register(twilioRoutes({ ...config.twilio, llm }));
   return app;
 }

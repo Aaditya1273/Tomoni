@@ -172,7 +172,9 @@ export async function callTurn(
     purpose: 'treatment',
     details: { step, flags: flags.length },
   });
-  return { callId, say: r.say, ended, outcome: ended ? outcome : null, flags };
+  const before = new Set(prev.slots.helpWanted ?? []);
+  const helpWanted = (r.state.slots.helpWanted ?? []).filter((w) => !before.has(w));
+  return { callId, say: r.say, ended, outcome: ended ? outcome : null, flags, helpWanted };
 }
 
 /** A nurse flag, its live event (no PHI in the payload) and its audit row, in one transaction. */

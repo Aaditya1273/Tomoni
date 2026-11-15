@@ -6,6 +6,7 @@ import { blueButtonFromEnv, ingestBundles, runEngine, today, type BlueButton } f
 import { audit } from '@tomoni/db';
 import { callKey, isDue, line, SCRIPT_VERSION, telephonyFromEnv, type Telephony } from '@tomoni/voice';
 import type { Queue } from 'bullmq';
+import { MockERx, MockPharmacyPortal, runAction } from '@tomoni/agent';
 
 let bb: BlueButton | undefined;
 const blueButton = () => (bb ??= blueButtonFromEnv());
@@ -211,5 +212,19 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
       }),
     );
     return { recipients: results.length, sent: results.filter((r) => r.sent).length, mode: t.mode };
+  },
+
+  /** One agent action: confirm → do → verify; failures retry with backoff, then go to ops. */
+  async 'action.run'({ actionId }) {
+    // ponytail: mock pharmacy and e-prescribing adapters only; real partners are a Go-Live item.
+    const adapters = { pharmacy: new MockPharmacyPortal(), erx: new MockERx() };
+    const r = await runAction(
+      (fn) => withScope('worker', systemScope('agent'), fn),
+      actionId,
+      adapters,
+      today(),
+    );
+    if ('retryInMs' in r) await deps.queue?.add('action.run', { actionId }, { delay: r.retryInMs });
+    return r;
   },
 };

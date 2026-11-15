@@ -63,6 +63,7 @@ export const JobPayloads = {
   'call.schedule': z.strictObject({}),
   'call.place': z.strictObject({ callId: z.uuid() }),
   'notify.family': z.strictObject({ flagId: z.uuid() }),
+  'action.run': z.strictObject({ actionId: z.uuid() }),
 } as const;
 export type JobName = keyof typeof JobPayloads;
 export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;
@@ -140,6 +141,7 @@ export const FamilyCard = z.object({
         z.object({ id: z.uuid(), name: z.string(), access: AccessStatus, runOutDate: z.string().nullable() }),
       ),
       warnings: z.array(WarningItem),
+      actions: z.array(z.lazy(() => ActionItem)),
     }),
   ),
 });
@@ -279,3 +281,35 @@ export const NurseFlagItem = z.object({
 export const NurseFlags = z.array(NurseFlagItem);
 export type NurseFlagItem = z.infer<typeof NurseFlagItem>;
 export const ResolveFlagBody = z.strictObject({ note: z.string().trim().min(1).max(1000) });
+
+// ─── agent actions (Phase 3) ─────────────────────────────────────────────────
+export const ActionState = z.enum([
+  'proposed',
+  'awaiting_approval',
+  'approved',
+  'running',
+  'verifying',
+  'succeeded',
+  'rejected',
+  'failed',
+  'handoff',
+  'cancelled',
+]);
+export const ActionItem = z.object({
+  id: z.uuid(),
+  patientId: z.uuid(),
+  warningId: z.uuid().nullable(),
+  skill: z.string(),
+  state: ActionState,
+  approvalClass: z.enum(['none', 'family', 'physician']),
+  /** Plain facts for the sentence: drug, pharmacy names, refill status, plan ranks. Never adapter free text. */
+  facts: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  updatedAt: z.string(),
+});
+export type ActionItem = z.infer<typeof ActionItem>;
+export const ActionList = z.array(ActionItem.extend({ patientName: z.string() }));
+export type ActionList = z.infer<typeof ActionList>;
+export const DecisionBody = z.strictObject({
+  decision: z.enum(['approve', 'reject']),
+  reason: z.string().trim().max(500).optional(),
+});
