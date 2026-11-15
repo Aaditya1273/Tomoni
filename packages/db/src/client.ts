@@ -6,11 +6,12 @@ import * as schema from './schema';
 import { env } from './env';
 
 export type Db = NodePgDatabase<typeof schema>;
-export type DbRole = 'app' | 'worker' | 'owner';
+export type DbRole = 'app' | 'worker' | 'sponsor' | 'owner';
 
 const urls: Record<DbRole, () => string> = {
   app: () => env().DATABASE_URL,
   worker: () => env().DATABASE_WORKER_URL,
+  sponsor: () => env().DATABASE_SPONSOR_URL,
   owner: () => env().DATABASE_OWNER_URL,
 };
 
@@ -45,7 +46,7 @@ export async function closePools(): Promise<void> {
  * code touches the database: every query inside sees exactly what the scope allows.
  */
 export async function withScope<T>(
-  role: 'app' | 'worker',
+  role: 'app' | 'worker' | 'sponsor',
   scope: RequestScope,
   fn: (db: Db) => Promise<T>,
 ): Promise<T> {
@@ -57,7 +58,8 @@ export async function withScope<T>(
               set_config('app.user_id', $3, true), set_config('app.roles', $4, true),
               set_config('app.is_admin', $5, true), set_config('app.staff_roles', $6, true),
               set_config('app.staff_practice_ids', $7, true), set_config('app.ops_practice_ids', $8, true),
-              set_config('app.household_ids', $9, true), set_config('app.patient_ids', $10, true)`,
+              set_config('app.household_ids', $9, true), set_config('app.patient_ids', $10, true),
+              set_config('app.sponsor_ids', $11, true)`,
       [
         scope.actorKind,
         scope.actorId,
@@ -69,6 +71,7 @@ export async function withScope<T>(
         scope.opsPracticeIds.join(','),
         scope.householdIds.join(','),
         scope.patientIds.join(','),
+        scope.sponsorIds.join(','),
       ],
     );
     const result = await fn(drizzle(client, { schema }));
