@@ -8,3 +8,4 @@ allowBuilds:
   # Prebuilt binaries arrive via optionalDependencies; their install scripts are not needed.
   '@parcel/watcher': false
   '@swc/core': false
+  msgpackr-extract: false

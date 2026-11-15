@@ -1,0 +1,23 @@
+{
+  "name": "@tomoni/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@tomoni/contracts": "workspace:*",
+    "@tomoni/core": "workspace:*",
+    "@tomoni/db": "workspace:*",
+    "@tomoni/medicines": "workspace:*",
+    "bullmq": "^6.7.6",
+    "drizzle-orm": "^0.45.4",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

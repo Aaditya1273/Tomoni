@@ -53,3 +53,179 @@ export const SandboxStatus = z.object({
 export type SandboxStatus = z.infer<typeof SandboxStatus>;
 
 export const Health = z.object({ ok: z.boolean(), db: z.boolean(), redis: z.boolean() });
+
+// ─── background jobs (API → worker via BullMQ) ──────────────────────────────
+export const QUEUE = 'tomoni';
+export const JobPayloads = {
+  'audit.seal': z.strictObject({}),
+  'engine.run': z.strictObject({ patientIds: z.array(z.uuid()).max(10_000).optional() }),
+  'bluebutton.sync': z.strictObject({ patientId: z.uuid() }),
+} as const;
+export type JobName = keyof typeof JobPayloads;
+export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;
+/** Retries with backoff for every job (BUILD_PROMPT §5.3). */
+export const JOB_DEFAULTS = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 10_000 },
+  removeOnComplete: 1000,
+  removeOnFail: 5000,
+} as const;
+
+// ─── medicines (Phase 2) ─────────────────────────────────────────────────────
+export const AccessStatus = z.enum(['green', 'amber', 'red']);
+export type AccessStatus = z.infer<typeof AccessStatus>;
+export const WarningType = z.enum([
+  'run_out',
+  'late_refill',
+  'premium_jump',
+  'formulary_removal',
+  'tier_change',
+  'negotiated_price_change',
+  'pharmacy_closure',
+  'shortage',
+  'gene_drug_mismatch',
+]);
+export type WarningType = z.infer<typeof WarningType>;
+
+/** The numbers a warning sentence needs. Ids, dates, tiers and prices only. */
+export const WarningFacts = z.object({
+  runOutDate: z.string().optional(),
+  daysWithout: z.number().optional(),
+  refillsRemaining: z.number().nullable().optional(),
+  tierBefore: z.number().nullable().optional(),
+  tierAfter: z.number().nullable().optional(),
+  premiumBeforeCents: z.number().optional(),
+  premiumAfterCents: z.number().optional(),
+  cost30BeforeCents: z.number().optional(),
+  cost30AfterCents: z.number().optional(),
+  plan: z.string().optional(),
+  pharmacy: z.string().optional(),
+  closesOn: z.string().optional(),
+  drugs: z.array(z.string()).optional(),
+});
+export type WarningFacts = z.infer<typeof WarningFacts>;
+
+export const WarningItem = z.object({
+  id: z.uuid(),
+  patientId: z.uuid(),
+  type: WarningType,
+  access: AccessStatus,
+  daysUntilProblem: z.number().int(),
+  problemDate: z.string(),
+  medicationId: z.uuid().nullable(),
+  drug: z.string().nullable(),
+  source: z.object({
+    kind: z.enum(['fill', 'data_file', 'call', 'pgx']),
+    date: z.string(),
+    label: z.string(),
+  }),
+  facts: WarningFacts,
+});
+export type WarningItem = z.infer<typeof WarningItem>;
+
+export const FamilyCard = z.object({
+  asOf: z.string(),
+  patients: z.array(
+    z.object({
+      id: z.uuid(),
+      name: z.string(),
+      access: AccessStatus,
+      medicare: z
+        .object({ mode: z.enum(['sandbox', 'mock', 'production']), lastSyncedAt: z.string().nullable() })
+        .nullable(),
+      medicines: z.array(
+        z.object({ id: z.uuid(), name: z.string(), access: AccessStatus, runOutDate: z.string().nullable() }),
+      ),
+      warnings: z.array(WarningItem),
+    }),
+  ),
+});
+export type FamilyCard = z.infer<typeof FamilyCard>;
+
+export const WarningEvidence = z.object({
+  warning: WarningItem.extend({
+    status: z.enum(['open', 'resolved']),
+    createdAt: z.string(),
+    patientName: z.string(),
+  }),
+  fills: z.array(
+    z.object({
+      id: z.uuid(),
+      fillDate: z.string(),
+      daysSupply: z.number(),
+      quantity: z.string(),
+      ndc: z.string(),
+      drug: z.string(),
+      pharmacy: z.string().nullable(),
+      source: z.enum(['bluebutton', 'mock', 'manual']),
+      sourceRef: z.string(),
+    }),
+  ),
+  files: z.array(
+    z.object({
+      id: z.uuid(),
+      role: z.enum(['before', 'after']),
+      kind: z.string(),
+      label: z.string(),
+      sourceUrl: z.string(),
+      effectiveDate: z.string(),
+      sha256: z.string(),
+      loadedAt: z.string(),
+      rowCount: z.number(),
+      droppedCount: z.number(),
+    }),
+  ),
+});
+export type WarningEvidence = z.infer<typeof WarningEvidence>;
+
+export const BlueButtonConnect = z.object({
+  authorizeUrl: z.string(),
+  mode: z.enum(['sandbox', 'mock', 'production']),
+});
+
+export const PbmCsvBody = z.strictObject({
+  csv: z
+    .string()
+    .min(1)
+    .max(2 * 1024 * 1024),
+});
+export const PbmPreview = z.object({
+  headers: z.array(z.string()),
+  sample: z.array(z.array(z.string())),
+  rowCount: z.number(),
+});
+export const PbmUploadBody = z.strictObject({
+  csv: z
+    .string()
+    .min(1)
+    .max(2 * 1024 * 1024),
+  label: z.string().trim().min(1).max(120),
+  mapping: z.strictObject({
+    formularyId: z.string().min(1).max(100),
+    drug: z.strictObject({ column: z.string().min(1).max(100), kind: z.enum(['rxcui', 'ndc']) }),
+    change: z.string().min(1).max(100),
+    newTier: z.string().min(1).max(100).nullable(),
+    effectiveDate: z.string().min(1).max(100),
+  }),
+});
+export const PbmUploadResult = z.object({
+  versionId: z.uuid().nullable(),
+  saved: z.number(),
+  duplicate: z.boolean(),
+  unknownDrugs: z.number(),
+  dropped: z.array(z.object({ line: z.number(), reason: z.string() })),
+  droppedCount: z.number(),
+  total: z.number(),
+});
+export const DataFiles = z.array(
+  z.object({
+    id: z.uuid(),
+    kind: z.string(),
+    label: z.string(),
+    sourceUrl: z.string(),
+    effectiveDate: z.string(),
+    rowCount: z.number(),
+    droppedCount: z.number(),
+    loadedAt: z.string(),
+  }),
+);

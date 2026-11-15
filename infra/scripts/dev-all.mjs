@@ -25,6 +25,7 @@ const child = spawn(
     '--filter=@tomoni/api',
     '--filter=@tomoni/web',
     '--filter=@tomoni/sponsor',
+    '--filter=@tomoni/worker',
     '--ui=stream',
   ],
   { stdio: 'inherit' },
