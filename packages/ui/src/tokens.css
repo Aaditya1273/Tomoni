@@ -1,0 +1,187 @@
+/*
+ * Tomoni design tokens (docs/DESIGN.md). Import after `@import "tailwindcss";`.
+ * Raw values live in --t-* custom properties; @theme maps them to Tailwind utilities, so
+ * theme (light/dark), surface (family/desk/sponsor) and large-text mode switch with no
+ * class changes.
+ */
+
+:root {
+  /* light (default) */
+  --t-paper: #f4f6fb;
+  --t-surface: #ffffff;
+  --t-sunken: #e9edf7;
+  --t-ink: #161b4a;
+  --t-muted: #4a5280;
+  --t-line: #c9d0e6;
+  --t-line-strong: #6e77a6;
+  --t-neel: #3341a8;
+  --t-neel-ink: #ffffff;
+  --t-neel-soft: #e4e7fa;
+  --t-jamun: #7a2f68;
+  --t-jamun-soft: #f6e6f1;
+  --t-ok: #1d6b45;
+  --t-ok-bg: #e3f2ea;
+  --t-watch: #8f5300;
+  --t-watch-bg: #fbefd9;
+  --t-act: #b3261e;
+  --t-act-bg: #fbe5e3;
+
+  /* surface defaults = family */
+  --t-wdth: 100;
+  --t-base: 18px;
+  --t-leading: 1.55;
+  --t-radius: 14px;
+  --t-target: 48px;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --t-paper: #0f1230;
+  --t-surface: #181c42;
+  --t-sunken: #0b0e26;
+  --t-ink: #e9ecfa;
+  --t-muted: #a9b0d6;
+  --t-line: #343a6e;
+  --t-line-strong: #7880b8;
+  --t-neel: #9aa5ff;
+  --t-neel-ink: #0f1230;
+  --t-neel-soft: #262c66;
+  --t-jamun: #e39bcf;
+  --t-jamun-soft: #3a1f3a;
+  --t-ok: #6fd3a0;
+  --t-ok-bg: #123527;
+  --t-watch: #f2b65a;
+  --t-watch-bg: #3a2a0e;
+  --t-act: #ff8a80;
+  --t-act-bg: #3d1714;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --t-paper: #0f1230;
+    --t-surface: #181c42;
+    --t-sunken: #0b0e26;
+    --t-ink: #e9ecfa;
+    --t-muted: #a9b0d6;
+    --t-line: #343a6e;
+    --t-line-strong: #7880b8;
+    --t-neel: #9aa5ff;
+    --t-neel-ink: #0f1230;
+    --t-neel-soft: #262c66;
+    --t-jamun: #e39bcf;
+    --t-jamun-soft: #3a1f3a;
+    --t-ok: #6fd3a0;
+    --t-ok-bg: #123527;
+    --t-watch: #f2b65a;
+    --t-watch-bg: #3a2a0e;
+    --t-act: #ff8a80;
+    --t-act-bg: #3d1714;
+    color-scheme: dark;
+  }
+}
+
+[data-surface='desk'],
+[data-surface='ops'] {
+  --t-wdth: 87.5;
+  --t-base: 15px;
+  --t-leading: 1.4;
+  --t-radius: 6px;
+  --t-target: 36px;
+}
+[data-surface='sponsor'] {
+  --t-wdth: 93.75;
+  --t-base: 15px;
+  --t-leading: 1.45;
+  --t-radius: 8px;
+  --t-target: 40px;
+}
+[data-surface='family'][data-text='large'] {
+  --t-base: 21px;
+  --t-target: 56px;
+}
+[data-surface='desk'][data-text='large'],
+[data-surface='ops'][data-text='large'],
+[data-surface='sponsor'][data-text='large'] {
+  --t-base: 18px;
+}
+
+@theme inline {
+  --font-sans:
+    var(--font-anek-latin), var(--font-anek-devanagari), var(--font-anek-gujarati), var(--font-anek-gurmukhi),
+    var(--font-anek-tamil), var(--font-anek-bangla), system-ui, sans-serif;
+
+  --color-paper: var(--t-paper);
+  --color-surface: var(--t-surface);
+  --color-sunken: var(--t-sunken);
+  --color-ink: var(--t-ink);
+  --color-muted: var(--t-muted);
+  --color-line: var(--t-line);
+  --color-line-strong: var(--t-line-strong);
+  --color-neel: var(--t-neel);
+  --color-neel-ink: var(--t-neel-ink);
+  --color-neel-soft: var(--t-neel-soft);
+  --color-jamun: var(--t-jamun);
+  --color-jamun-soft: var(--t-jamun-soft);
+  --color-ok: var(--t-ok);
+  --color-ok-bg: var(--t-ok-bg);
+  --color-watch: var(--t-watch);
+  --color-watch-bg: var(--t-watch-bg);
+  --color-act: var(--t-act);
+  --color-act-bg: var(--t-act-bg);
+
+  /* 1.25 scale from the surface's base size */
+  --text-xs: calc(var(--t-base) * 0.8);
+  --text-sm: calc(var(--t-base) * 0.9);
+  --text-base: var(--t-base);
+  --text-lg: calc(var(--t-base) * 1.25);
+  --text-xl: calc(var(--t-base) * 1.5625);
+  --text-2xl: calc(var(--t-base) * 1.953);
+  --text-3xl: calc(var(--t-base) * 2.441);
+  --text-4xl: calc(var(--t-base) * 3.052);
+
+  --radius-panel: var(--t-radius);
+  --radius-control: calc(var(--t-radius) * 0.7);
+  --radius-pill: 999px;
+
+  --spacing-target: var(--t-target);
+}
+
+@layer base {
+  html {
+    background: var(--t-paper);
+    color: var(--t-ink);
+    font-family: var(--font-sans);
+    font-size: var(--t-base);
+    line-height: var(--t-leading);
+    font-stretch: calc(var(--t-wdth) * 1%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    min-height: 100dvh;
+  }
+  /* A surface wrapper re-applies the type settings so its subtree uses that surface's scale. */
+  [data-surface] {
+    font-size: var(--t-base);
+    line-height: var(--t-leading);
+    font-stretch: calc(var(--t-wdth) * 1%);
+  }
+  :focus-visible {
+    outline: 3px solid var(--t-neel);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

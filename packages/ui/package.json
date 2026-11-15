@@ -1,0 +1,37 @@
+{
+  "name": "@tomoni/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build": "storybook build -o storybook-static --quiet"
+  },
+  "peerDependencies": {
+    "react": "^19.3.1"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.73.0",
+    "radix-ui": "^1.8.1"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "^10.6.7",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^19.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "storybook": "^10.6.7",
+    "tailwindcss": "^4.3.5",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.0",
+    "vitest": "^5.1.0"
+  }
+}

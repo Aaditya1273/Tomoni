@@ -2,11 +2,26 @@
   "$schema": "https://turborepo.com/schema.json",
   "globalEnv": ["NODE_ENV", "DATABASE_URL", "REDIS_URL"],
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**", "!.next/cache/**", "storybook-static/**"] },
-    "typecheck": { "dependsOn": ["^typecheck"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "storybook-static/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
     "lint": {},
-    "test": { "outputs": ["coverage/**"] },
-    "test:e2e": { "dependsOn": ["build"], "cache": false },
-    "dev": { "cache": false, "persistent": true }
-  }
+    "test": {
+      "outputs": ["coverage/**"],
+      "dependsOn": []
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  },
+  "globalPassThroughEnv": ["CI", "TOMONI_*", "API_*", "PLAYWRIGHT_*", "LOG_LEVEL"]
 }

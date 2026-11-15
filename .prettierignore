@@ -2,3 +2,8 @@ pnpm-lock.yaml
 **/drizzle/meta/
 docs/BUILD_PROMPT.md
 isoko.md
+*.md
+**/fonts/manifest.json
+apps/*/.next/
+packages/ui/storybook-static/
+apps/web/e2e/__screens__/

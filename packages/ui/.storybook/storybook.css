@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+@import '../src/tokens.css';
+@source '../src';
+
+/* Same self-hosted Anek files the apps use (packages/web-shared/fonts). */
+@font-face {
+  font-family: 'Anek Latin';
+  src: url('/fonts/anek-latin-latin.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
+}
+@font-face {
+  font-family: 'Anek Devanagari';
+  src: url('/fonts/anek-devanagari-devanagari.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
+}
+@font-face {
+  font-family: 'Anek Gujarati';
+  src: url('/fonts/anek-gujarati-gujarati.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
+}
+@font-face {
+  font-family: 'Anek Tamil';
+  src: url('/fonts/anek-tamil-tamil.woff2') format('woff2');
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
+}
+:root {
+  --font-anek-latin: 'Anek Latin';
+  --font-anek-devanagari: 'Anek Devanagari';
+  --font-anek-gujarati: 'Anek Gujarati';
+  --font-anek-tamil: 'Anek Tamil';
+}
