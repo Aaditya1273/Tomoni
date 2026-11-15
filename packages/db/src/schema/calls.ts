@@ -1,5 +1,5 @@
 import { boolean, date, integer, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { encrypted } from '../fields';
+import { bytea, encrypted } from '../fields';
 import { care } from './care';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -131,4 +131,17 @@ export const apcmMonthRecord = care.table('apcm_month_record', {
   billedBy: uuid('billed_by'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const invite = care.table('invite', {
+  id: uuid().primaryKey().defaultRandom(),
+  householdId: uuid('household_id').notNull(),
+  kind: text().$type<'sibling' | 'doctor'>().notNull(),
+  target: encrypted('care.invite.target').notNull(),
+  tokenHash: bytea('token_hash'),
+  status: text().$type<'pending' | 'accepted' | 'revoked'>().notNull().default('pending'),
+  createdBy: uuid('created_by').notNull(),
+  acceptedBy: uuid('accepted_by'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
 });

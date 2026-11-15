@@ -399,3 +399,42 @@ export const QueueItem = z.object({
 });
 export type QueueItem = z.infer<typeof QueueItem>;
 export const DeskQueue = z.array(QueueItem);
+
+// ─── family: activity, streaks, invites (Phase 4) ───────────────────────────
+export const ActivityEvent = z.object({
+  at: z.string(),
+  patientId: z.uuid(),
+  patientName: z.string(),
+  kind: z.enum(['call', 'action', 'warning', 'flag']),
+  /** A key the web app words; facts are plain values, never free text from calls or adapters. */
+  what: z.string(),
+  facts: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+});
+export const Activity = z.object({
+  events: z.array(ActivityEvent),
+  streaks: z.array(
+    z.object({
+      patientId: z.uuid(),
+      patientName: z.string(),
+      callStreak: z.number(),
+      shieldUsed: z.boolean(),
+    }),
+  ),
+  week: z.object({
+    calls: z.number(),
+    problemsCaught: z.number(),
+    tasksDone: z.number(),
+    minutesSaved: z.number(),
+  }),
+});
+export type Activity = z.infer<typeof Activity>;
+export const InviteBody = z.strictObject({
+  kind: z.enum(['sibling', 'doctor']),
+  email: z.email().max(254),
+});
+export const InviteResult = z.object({ id: z.uuid(), acceptUrl: z.string().nullable() });
+export const AcceptInviteBody = z.strictObject({
+  token: z.string().min(20).max(100),
+  displayName: z.string().trim().min(1).max(100),
+  password: z.string().min(12).max(256),
+});

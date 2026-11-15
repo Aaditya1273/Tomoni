@@ -117,16 +117,14 @@ describe('desk: patient, care plan, APCM', () => {
   });
 
   it('the queue puts an emergency before a care plan, with the caller’s words, for the practice only', async () => {
-    await ownerDb()
-      .insert(schema.nurseFlag)
-      .values({
-        patientId,
-        channel: 'voice',
-        class: 'emergency',
-        matchedRule: 'en.emergency.chest',
-        excerpt: 'chest pain',
-        urgency: 1,
-      });
+    await ownerDb().insert(schema.nurseFlag).values({
+      patientId,
+      channel: 'voice',
+      class: 'emergency',
+      matchedRule: 'en.emergency.chest',
+      excerpt: 'chest pain',
+      urgency: 1,
+    });
     await nurse.req('POST', `/api/desk/patients/${patientId}/care-plan/draft`);
     const q = (await doctor.req('GET', '/api/desk/queue')).json();
     expect(q.map((i: { kind: string }) => i.kind)).toEqual(['flag', 'care_plan']);

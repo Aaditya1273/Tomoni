@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { HeartHandshake } from 'lucide-react';
-import type { FamilyCard } from '@tomoni/contracts';
+import type { Activity, FamilyCard } from '@tomoni/contracts';
 import { EmptyState, Notice, StatusPill } from '@tomoni/ui';
 import { PrefsMenu } from '@tomoni/web-shared';
 import { apiGet, getPrefs, getSandbox, requireSurface } from '@tomoni/web-shared/server';
@@ -30,6 +30,7 @@ export default async function FamilyToday({
     apiGet<FamilyCard>('/api/family/card'),
     searchParams,
   ]);
+  const activity = (await apiGet<Activity>('/api/family/activity')).data;
   const first = me.user.displayName.split(' ')[0] ?? me.user.displayName;
   const patients = card.data?.patients ?? [];
   const asOf = card.data?.asOf ?? '';
@@ -57,6 +58,19 @@ export default async function FamilyToday({
         {asOf && (
           <p className="text-sm text-muted">
             {t('asOf', { date: f.dateTime(day(asOf), { dateStyle: 'medium' }) })}
+          </p>
+        )}
+        {activity && patients.length > 0 && (
+          <p className="text-sm" data-week>
+            {t('week', {
+              calls: activity.week.calls,
+              caught: activity.week.problemsCaught,
+              tasks: activity.week.tasksDone,
+              minutes: activity.week.minutesSaved,
+            })}{' '}
+            <Link href="/family/activity" className="font-semibold text-neel underline underline-offset-2">
+              {t('activityLink')}
+            </Link>
           </p>
         )}
       </div>
@@ -87,6 +101,15 @@ export default async function FamilyToday({
                 </h2>
                 <StatusPill status={statusOf[p.access]}>{statusWord[p.access]}</StatusPill>
               </div>
+              {(() => {
+                const st = activity?.streaks.find((x) => x.patientId === p.id);
+                return st && st.callStreak > 0 ? (
+                  <p className="-mt-2 text-sm font-semibold text-jamun" data-streak={st.callStreak}>
+                    {t('streak', { days: st.callStreak })}
+                    {st.shieldUsed && <span className="font-normal text-muted"> · {t('shield')}</span>}
+                  </p>
+                ) : null;
+              })()}
 
               {p.warnings.length > 0 && (
                 <ol className="flex flex-col divide-y divide-line">
@@ -160,6 +183,13 @@ export default async function FamilyToday({
           );
         }),
       )}
+
+      <Link
+        href="/family/invite"
+        className="self-start font-semibold text-jamun underline underline-offset-2"
+      >
+        {t('inviteLink')}
+      </Link>
 
       <div className="mt-auto border-t border-line pt-6">
         <PrefsMenu initialTheme={prefs.theme} initialLargeText={prefs.largeText} />

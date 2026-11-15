@@ -35,7 +35,13 @@
     "badCode": "That code didn't match. Codes change every 30 seconds; try the newest one.",
     "chooseSurface": "Where do you want to go?",
     "wrongApp": "This account is for the research partner portal. Sign in there instead.",
-    "notPartner": "This portal is for research partners only. Families and care teams sign in to the main Tomoni app."
+    "notPartner": "This portal is for research partners only. Families and care teams sign in to the main Tomoni app.",
+    "invited": "You're in. Sign in with the e-mail and password you just set.",
+    "acceptTitle": "Join your family on Tomoni",
+    "acceptName": "Your name",
+    "acceptPassword": "Choose a password (12 characters or more)",
+    "acceptButton": "Join",
+    "acceptInvalid": "This invite link is not valid any more. Ask for a new one."
   },
   "surfaces": {
     "family": "Family",
@@ -155,6 +161,71 @@
         "comparePartDPlans": "For these medicines, the lowest-cost plan is {plan} at about {cost} a year. Plans are ranked by cost only.",
         "bookPickup": "Pickup booked."
       }
+    },
+    "week": "This week: {calls, plural, one {# call} other {# calls}}, {caught, plural, one {# problem} other {# problems}} caught early, {tasks, plural, one {# task} other {# tasks}} done (about {minutes} minutes of phone calls saved).",
+    "streak": "{days, plural, one {# day} other {# days}} of calls in a row",
+    "shield": "one missed day forgiven",
+    "activityLink": "Everything Tomoni did",
+    "inviteLink": "Invite a sibling or the doctor",
+    "activity": {
+      "title": "What Tomoni did",
+      "empty": "Nothing in the last 30 days.",
+      "what": {
+        "call": {
+          "completed": "Daily call with {name}",
+          "escalated": "Call with {name}: emergency advice given, care team alerted",
+          "no_answer": "{name} didn't answer the daily call",
+          "voicemail": "Left a voicemail for {name}",
+          "failed": "The daily call to {name} didn't go through"
+        },
+        "action": {
+          "succeeded": "Done for {name}: {skill}",
+          "awaiting_approval": "Waiting for approval: {skill} for {name}",
+          "handoff": "Passed to a person on the team: {skill} for {name}",
+          "rejected": "Not done (you said not now): {skill} for {name}"
+        },
+        "warning": {
+          "created": "New warning for {name}: {type}"
+        },
+        "flag": {
+          "symptom": "{name} mentioned a symptom; the nurse was told",
+          "medication_change": "{name} asked about a medicine change; the nurse was told",
+          "emergency": "{name} said something that may be an emergency; the practice was alerted",
+          "self_harm": "{name} may be in distress; the practice was alerted"
+        }
+      },
+      "skill": {
+        "checkRefillStatus": "checked a refill",
+        "draftRenewalForDoctor": "renewal for the doctor",
+        "draftFormularyException": "coverage request for the doctor",
+        "requestPharmacyTransfer": "pharmacy transfer",
+        "findStock": "looked for stock",
+        "bookPickup": "booked a pickup",
+        "comparePartDPlans": "compared drug plans"
+      },
+      "type": {
+        "run_out": "running out",
+        "late_refill": "late refill",
+        "premium_jump": "premium going up",
+        "formulary_removal": "no longer covered",
+        "tier_change": "higher tier",
+        "negotiated_price_change": "price going up",
+        "pharmacy_closure": "pharmacy closing",
+        "shortage": "shortage"
+      }
+    },
+    "invite": {
+      "title": "Invite family",
+      "help": "A sibling gets their own login to the same family card. Tomoni gives you a link to send them yourself, by WhatsApp or text. It works once, for 7 days.",
+      "kind": "Who",
+      "sibling": "A brother or sister",
+      "doctor": "The doctor",
+      "email": "Their e-mail",
+      "send": "Create invite",
+      "link": "Send this link to them:",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "doctorDone": "Thanks. Tomoni will contact the doctor's office."
     }
   },
   "desk": {
