@@ -103,7 +103,7 @@ try {
     return { performance: score('performance'), accessibility: score('accessibility') };
   });
   const median = runs.sort((a, b) => a.performance - b.performance)[1]!;
-  console.log(JSON.stringify({ runs, median }));
+  console.warn(JSON.stringify({ runs, median }));
   const scores = median;
   process.exitCode = Object.values(scores).every((s) => s >= 90) ? 0 : 1;
 } finally {
