@@ -215,6 +215,65 @@
     "what": {
       "draftRenewalForDoctor": "Renew {drug}",
       "draftFormularyException": "Ask the plan to keep covering {drug}"
+    },
+    "nav": {
+      "queue": "Queue",
+      "billing": "APCM billing",
+      "report": "Practice report"
+    },
+    "patient": {
+      "born": "Born {year}",
+      "enrolled": "Enrolled in APCM",
+      "notEnrolled": "Not enrolled in APCM",
+      "carePlan": "Care plan",
+      "noPlan": "No care plan yet.",
+      "draft": "Draft care plan",
+      "sign": "Sign care plan",
+      "version": "Version {v}, {status}",
+      "problems": "Problems",
+      "goals": "Goals",
+      "medications": "Medicines",
+      "interventions": "What Tomoni does",
+      "contacts": "Family contacts",
+      "timeline": "Timeline",
+      "status": {
+        "draft": "draft, not signed",
+        "signed": "signed",
+        "superseded": "replaced"
+      }
+    },
+    "billing": {
+      "title": "APCM billing",
+      "month": "Month",
+      "build": "Check this month",
+      "export": "Export evidence (CSV)",
+      "patient": "Patient",
+      "code": "Code",
+      "conditions": "Chronic conditions",
+      "services": "Services",
+      "status": "Status",
+      "rate": "Rate",
+      "markBilled": "Mark billed",
+      "empty": "Nothing checked for this month yet.",
+      "statusName": {
+        "ready": "Ready to bill",
+        "billed": "Billed",
+        "excluded": "Not billable",
+        "draft": "Draft"
+      },
+      "show": "Show"
+    },
+    "report": {
+      "title": "Practice report",
+      "enrolled": "Patients enrolled",
+      "revenue": "APCM revenue, ready or billed",
+      "ready": "Months ready to bill",
+      "excluded": "Months not billable",
+      "calls": "Daily calls completed",
+      "flags": "Nurse flags raised / handled",
+      "tasks": "Tasks Tomoni finished",
+      "caught": "Problems caught before they hit",
+      "rateNote": "At CY2026 national Medicare rates; your local rate differs."
     }
   },
   "ops": {

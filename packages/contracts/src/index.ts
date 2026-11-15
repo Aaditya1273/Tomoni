@@ -313,3 +313,66 @@ export const DecisionBody = z.strictObject({
   decision: z.enum(['approve', 'reject']),
   reason: z.string().trim().max(500).optional(),
 });
+
+// ─── desk: patient, care plans, APCM, practice report (Phase 4) ─────────────
+export const Month = z.string().regex(/^20\d\d-(0[1-9]|1[0-2])$/);
+export const CarePlanItem = z.object({
+  id: z.uuid(),
+  version: z.number(),
+  status: z.enum(['draft', 'signed', 'superseded']),
+  body: z.object({
+    problems: z.array(z.object({ code: z.string(), name: z.string() })),
+    goals: z.array(z.string()),
+    medications: z.array(z.string()),
+    interventions: z.array(z.string()),
+    contacts: z.array(z.object({ name: z.string(), role: z.string() })),
+  }),
+  draftedBy: z.string(),
+  signedAt: z.string().nullable(),
+});
+export type CarePlanItem = z.infer<typeof CarePlanItem>;
+export const TimelineEvent = z.object({
+  at: z.string(),
+  kind: z.enum(['call', 'fill', 'warning', 'action', 'flag', 'care_plan']),
+  title: z.string(),
+  detail: z.string().nullable(),
+  ref: z.string(),
+});
+export const DeskPatient = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  locale: z.string(),
+  birthYear: z.number(),
+  apcmEnrolled: z.boolean(),
+  carePlans: z.array(CarePlanItem),
+  timeline: z.array(TimelineEvent),
+});
+export type DeskPatient = z.infer<typeof DeskPatient>;
+export const ApcmRecordItem = z.object({
+  id: z.uuid(),
+  patientId: z.uuid(),
+  patientName: z.string(),
+  month: z.string(),
+  hcpcs: z.enum(['G0556', 'G0557', 'G0558']).nullable(),
+  chronicConditions: z.array(z.string()),
+  status: z.enum(['draft', 'ready', 'billed', 'excluded']),
+  exclusionReason: z.string().nullable(),
+  services: z.number(),
+  rateCents: z.number().nullable(),
+});
+export const ApcmList = z.array(ApcmRecordItem);
+export type ApcmList = z.infer<typeof ApcmList>;
+export const PracticeReport = z.object({
+  month: z.string(),
+  enrolled: z.number(),
+  ready: z.number(),
+  billed: z.number(),
+  excluded: z.number(),
+  apcmRevenueCents: z.number(),
+  callsCompleted: z.number(),
+  flagsRaised: z.number(),
+  flagsHandled: z.number(),
+  tasksDoneByTomoni: z.number(),
+  problemsCaughtEarly: z.number(),
+});
+export type PracticeReport = z.infer<typeof PracticeReport>;

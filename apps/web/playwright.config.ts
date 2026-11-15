@@ -50,7 +50,7 @@ export default defineConfig({
     {
       command: 'pnpm next build && pnpm next start -p 3001',
       url: 'http://localhost:3001/login',
-      env: { API_ORIGIN: 'http://127.0.0.1:4001' },
+      env: { API_ORIGIN: 'http://127.0.0.1:4001', TOMONI_TODAY: E2E_ENV.TOMONI_TODAY },
       reuseExistingServer: false,
       timeout: 240_000,
     },

@@ -60,7 +60,12 @@ export function FlagQueue({ initial }: { initial: NurseFlagItem[] }) {
             <li key={x.id} className="flex flex-col gap-1.5 py-3" data-flag={x.class}>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill status={x.urgency === 1 ? 'act' : 'watch'}>{t(`class.${x.class}`)}</StatusPill>
-                <span className="font-semibold">{x.patientName}</span>
+                <a
+                  href={`/desk/patients/${x.patientId}`}
+                  className="font-semibold text-neel underline underline-offset-2"
+                >
+                  {x.patientName}
+                </a>
                 <span className="text-sm text-muted">
                   {t('via', {
                     channel: t(`channel.${x.channel as 'simulator'}`),

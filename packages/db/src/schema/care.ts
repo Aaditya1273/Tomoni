@@ -69,6 +69,7 @@ export const patient = care.table('patient', {
   callWindowEnd: time('call_window_end').notNull().default('12:00'),
   medicareType: text('medicare_type').$type<'original' | 'advantage'>().notNull(),
   status: text().$type<'active' | 'paused' | 'deceased' | 'left'>().notNull().default('active'),
+  qmb: boolean().notNull().default(false),
   ...stamps,
 });
 

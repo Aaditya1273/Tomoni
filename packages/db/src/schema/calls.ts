@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, integer, jsonb, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { encrypted } from '../fields';
 import { care } from './care';
 
@@ -92,4 +92,43 @@ export const approval = care.table('approval', {
   decision: text().$type<'approve' | 'reject'>().notNull(),
   reason: text(),
   decidedAt: ts('decided_at').notNull().defaultNow(),
+});
+
+export type CarePlanBody = {
+  problems: { code: string; name: string }[];
+  goals: string[];
+  medications: string[];
+  interventions: string[];
+  contacts: { name: string; role: string }[];
+};
+
+export const carePlan = care.table('care_plan', {
+  id: uuid().primaryKey().defaultRandom(),
+  patientId: uuid('patient_id').notNull(),
+  version: integer().notNull(),
+  status: text().$type<'draft' | 'signed' | 'superseded'>().notNull().default('draft'),
+  body: jsonb().$type<CarePlanBody>().notNull(),
+  draftedBy: text('drafted_by').notNull(),
+  signedBy: uuid('signed_by'),
+  signedAt: ts('signed_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export type ApcmService = { kind: string; at: string; ref: string };
+export const apcmMonthRecord = care.table('apcm_month_record', {
+  id: uuid().primaryKey().defaultRandom(),
+  patientId: uuid('patient_id').notNull(),
+  practiceId: uuid('practice_id').notNull(),
+  month: date().notNull(),
+  hcpcs: text().$type<'G0556' | 'G0557' | 'G0558'>(),
+  chronicConditions: text('chronic_conditions').array().notNull().default([]),
+  consentId: uuid('consent_id'),
+  carePlanId: uuid('care_plan_id'),
+  services: jsonb().$type<ApcmService[]>().notNull().default([]),
+  status: text().$type<'draft' | 'ready' | 'billed' | 'excluded'>().notNull().default('draft'),
+  exclusionReason: text('exclusion_reason'),
+  billedAt: ts('billed_at'),
+  billedBy: uuid('billed_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });

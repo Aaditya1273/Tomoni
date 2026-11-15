@@ -215,6 +215,65 @@
     "what": {
       "draftRenewalForDoctor": "{drug} का नवीनीकरण",
       "draftFormularyException": "प्लान से {drug} का कवर जारी रखने का अनुरोध"
+    },
+    "nav": {
+      "queue": "कतार",
+      "billing": "APCM बिलिंग",
+      "report": "प्रैक्टिस रिपोर्ट"
+    },
+    "patient": {
+      "born": "जन्म {year}",
+      "enrolled": "APCM में नामांकित",
+      "notEnrolled": "APCM में नामांकित नहीं",
+      "carePlan": "केयर प्लान",
+      "noPlan": "अभी कोई केयर प्लान नहीं।",
+      "draft": "केयर प्लान का मसौदा बनाएँ",
+      "sign": "केयर प्लान पर हस्ताक्षर करें",
+      "version": "संस्करण {v}, {status}",
+      "problems": "समस्याएँ",
+      "goals": "लक्ष्य",
+      "medications": "दवाइयाँ",
+      "interventions": "Tomoni क्या करता है",
+      "contacts": "परिवार के संपर्क",
+      "timeline": "समय-रेखा",
+      "status": {
+        "draft": "मसौदा, हस्ताक्षर नहीं",
+        "signed": "हस्ताक्षरित",
+        "superseded": "बदला गया"
+      }
+    },
+    "billing": {
+      "title": "APCM बिलिंग",
+      "month": "महीना",
+      "build": "यह महीना जाँचें",
+      "export": "सबूत निर्यात करें (CSV)",
+      "patient": "मरीज़",
+      "code": "कोड",
+      "conditions": "पुरानी बीमारियाँ",
+      "services": "सेवाएँ",
+      "status": "स्थिति",
+      "rate": "दर",
+      "markBilled": "बिल किया गया",
+      "empty": "इस महीने के लिए अभी कुछ नहीं जाँचा गया।",
+      "statusName": {
+        "ready": "बिल के लिए तैयार",
+        "billed": "बिल किया गया",
+        "excluded": "बिल योग्य नहीं",
+        "draft": "मसौदा"
+      },
+      "show": "दिखाएँ"
+    },
+    "report": {
+      "title": "प्रैक्टिस रिपोर्ट",
+      "enrolled": "नामांकित मरीज़",
+      "revenue": "APCM आय, तैयार या बिल की गई",
+      "ready": "बिल के लिए तैयार महीने",
+      "excluded": "बिल योग्य नहीं महीने",
+      "calls": "पूरी हुई रोज़ की कॉल",
+      "flags": "नर्स फ़्लैग बने / संभाले",
+      "tasks": "Tomoni ने जो काम पूरे किए",
+      "caught": "समय से पहले पकड़ी गई समस्याएँ",
+      "rateNote": "2026 की राष्ट्रीय Medicare दरों पर; आपकी स्थानीय दर अलग हो सकती है।"
     }
   },
   "ops": {
