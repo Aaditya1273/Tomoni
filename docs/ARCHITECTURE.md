@@ -103,10 +103,8 @@ tomoni/
 1. **Edge.** The browser calls `/api/*` on the web origin. Next.js rewrites it to the API, which keeps cookies first-party.
 2. **Authentication.** A session cookie (`__Host-tomoni_sid`, httpOnly, Secure, SameSite=Strict) is looked up in `auth.session`. Idle timeout is 15 minutes for clinical, sponsor and ops roles and 7 days for family. MFA (TOTP) is required for clinical, sponsor, ops and admin roles.
 3. **Validation.** Every route declares Zod schemas for params, query, body and response. Anything that fails is rejected with a 400 and never reaches a handler.
-4. **Rate limiting.** Per IP and per session, through `@fastify/rate-limit` backed by Redis.
-5. **Scoped transaction.** Every request runs inside one DB transaction that first does
-   `SET LOCAL ROLE tomoni_app` and
-   `SELECT set_config('app.user_id', …, true), set_config('app.roles', …, true), set_config('app.practice_ids', …, true), set_config('app.household_ids', …, true)`.
+4. **Rate limiting.** Redis-backed (D-015). The global limit is per session, or per IP when there is no session. Login is limited per (IP, account), with a separate per-IP cap against account spraying.
+5. **Scoped transaction.** The API connects as `tomoni_app` (no BYPASSRLS). Every request runs inside one transaction (`withScope`) that first sets the caller's scope with `set_config(..., is_local => true)`: the user id, the roles, and one id list per role family (`staff_practice_ids`, `ops_practice_ids`, `household_ids`, `patient_ids`).
    RLS policies read these settings, so a handler can't see rows outside the caller's scope even if its query is wrong.
 6. **Audit.** Any read or write of PHI calls `audit.append(...)` in the same transaction. If the audit insert fails, the request fails.
 7. **Events.** State changes write an `outbox` row in the same transaction (the transactional outbox pattern).

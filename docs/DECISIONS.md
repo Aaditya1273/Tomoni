@@ -18,13 +18,16 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-012 | Own deterministic seed generator instead of Synthea | Accepted |
 | D-013 | Local ports moved off 5432/5433/8080 | Accepted |
 | D-014 | Building software during the manual-validation phase | NEEDS-FOUNDER-REVIEW |
+| D-015 | Rate limits keyed per session and per (IP, account) | Accepted |
+| D-016 | Self-hosted Anek fonts instead of `next/font/google` | Accepted |
+| D-017 | TypeScript 6.0, not 7 | Accepted |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
 **Chosen: (c).** Family, desk and ops share the same PHI, auth model and design system, so splitting them adds three build pipelines and no isolation. The sponsor portal is different: it must never be able to render PHI. On its own origin it gets its own cookies and CSP, and it can reach only `/sponsor-api/*`, which runs on a DB role with no PHI grants.
 
-## D-003: Drizzle over Prisma
-The RLS policies, `SECURITY DEFINER` functions, triggers and `SET LOCAL ROLE` per transaction are all hand-written SQL. Drizzle's SQL-first migrations and plain `pg` transactions make those first-class. Prisma's connection and transaction model makes per-transaction role and GUC switching awkward.
+## D-003: Drizzle over Prisma; migrations are hand-written SQL
+Drizzle is the typed query layer only. Migrations are plain SQL files (`packages/db/migrations/NNNN_*.sql`) applied by a small checksumming migrator, so a migration can't be edited after it has run. The RLS policies, `SECURITY DEFINER` functions, triggers and `SET LOCAL ROLE` per transaction are all hand-written SQL. Drizzle's SQL-first migrations and plain `pg` transactions make those first-class. Prisma's connection and transaction model makes per-transaction role and GUC switching awkward.
 
 ## D-004: SSE over WebSockets
 All real-time traffic is server → client: flags, card updates, queue changes. SSE reconnects by itself, passes through proxies, and runs over the same cookie-authenticated HTTP. Upgrade to WebSockets only if a surface ever needs client → server streaming (the call simulator uses plain POST plus SSE).
@@ -64,3 +67,21 @@ Synthea needs a JVM. Its output is US-English and doesn't include the scripted h
 
 ## D-014: Building software during the manual-validation phase (NEEDS-FOUNDER-REVIEW)
 The business plan says the first 30 days run by hand with 3 practices and 50 families before any serious software is written. Phase 0 (the plan-check sprint) ends on 2026-12-07, and nothing in this build helps it. The build proceeds as instructed. Suggested order if time is short: Phases 1–3 support the manual phase (ops console, call simulator, warnings); Phases 5–6 can wait until an IRB is engaged.
+
+## D-015: Rate limits keyed per session and per (IP, account)
+The first version limited login to 10 per minute per IP and everything else to 300 per minute per IP. The end-to-end suite showed two production problems:
+- A clinic's staff share one office IP, so a per-IP login limit lets colleagues lock each other out at 9am.
+- Server-side rendering reaches the API from the web server's single IP, so a per-IP global limit makes every user share one budget.
+
+**Chosen:**
+- Login: 10 per minute per (IP, e-mail), which stops guessing against one account, plus 60 per minute per IP across all accounts, which stops spraying.
+- Global: 300 per minute per session, or per IP for signed-out requests.
+- `/api/system/*` is exempt; it returns no data and the web app caches it.
+
+Lockout after 5 failed passwords (S8) still applies per account.
+
+## D-016: Self-hosted fonts
+`next/font/google` downloads the fonts at build time. That failed intermittently on the dev machine and would make CI depend on Google. The six Anek subsets (about 2 MB in total, each loaded only when a page uses its script) are committed under `packages/web-shared/fonts` with the OFL notice. A side benefit: no browser ever requests a font from a third party.
+
+## D-017: TypeScript 6.0, not 7
+TypeScript 7 (the native compiler) is the current release, but `typescript-eslint` 8.72 supports only versions below 6.1. Lint rules carry product guarantees (S3, S10), so lint wins. Move to 7 when `typescript-eslint` supports it.
