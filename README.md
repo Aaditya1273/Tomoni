@@ -36,6 +36,7 @@ All use the password `tomoni-demo-2026`. They exist only in the synthetic seed, 
 | --- | --- | --- | --- |
 | `asha@demo.tomoni.test` | Family member (Raj's daughter): sees Raj's and Kokila's medicines and warnings | Family app | No |
 | `raj@demo.tomoni.test` | Patient | Family app | No |
+| `priya@demo.tomoni.test` | Family member abroad (India bridge): her mother Sunita lives in Ahmedabad | Family app, with "Add a medicine" | No |
 | `dr.rao@demo.tomoni.test` | Physician, Rao Family Medicine | Care desk | Yes, enroll on first sign-in |
 | `nurse.priya@demo.tomoni.test` | Nurse, Rao Family Medicine | Care desk | Yes |
 | `frontdesk@demo.tomoni.test` | Front desk, Rao Family Medicine | Care desk | Yes |

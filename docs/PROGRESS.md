@@ -15,7 +15,8 @@
   - A sibling joins.
   - The care plan is signed and the month is billable.
   - Asha reads the week.
-- **Next: Phase 4b (India bridge), then Phase 5 (Research core).** See STRATEGY.md.
+- **Phase 4b (India bridge): first slice done.** A family abroad sees sourced warnings for a parent in India and adds medicines from the bill with a photo, end to end in Playwright (`e2e/india.spec.ts`). Still to come: family subscription billing, India-specific skills (reminders to see the local doctor), and the legal checks in D-027 before any India call.
+- **Next: Phase 5 (Research core).**
 
 ## Test inventory (all passing)
 
@@ -32,7 +33,7 @@
 | `packages/voice` | 17 (+9 live eval, opt-in) | Disclosure first; normal call slots; one re-ask; emergency and self-harm end the call; a symptom skips every admin step; the LLM never sees text the matcher fired on; the LLM can add a flag, never remove one; scheduler time zones, DST, quiet hours; Twilio signature against Twilio's documented example |
 | `packages/agent` | 13 | Closed registry; approval classes; no path skips approval or verification; strict inputs; the database rejects approvals from the wrong role or practice; confirm → do → verify recorded step by step; backoff then ops handoff; hostile pharmacy text stays untrusted data; plan ranking unaffected by any commission |
 | `packages/care` | 7 | Chronic conditions from ICD-10; G0556/G0557/G0558; months excluded with reasons; only a physician of the practice signs; signed plans immutable; billed months frozen |
-| `apps/web` e2e | 55 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
+| `apps/web` e2e | 57 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
 ## Log
 
@@ -51,6 +52,7 @@
 | 2026-11-15 | 4.1 APCM | Care plans (physician-only signing, immutable), APCM month records with evidence, CSV export, practice report | Unit, DB, API, e2e | — |
 | 2026-11-15 | 4.2 Desk queue | Keyboard-first queue (j/k/s/x/Shift+S) with evidence pane | API, e2e | — |
 | 2026-11-15 | 4.3–4.4 Family | Activity log, streaks, invites; one-week scenario | API, e2e | — |
+| 2026-11-15 | 4b.1 India bridge | Region per household; family-entered medicines with encrypted photo evidence; engine on family entries; India demo household | API, e2e | Local object store until S3 |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests
@@ -87,4 +89,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 4b, slice 1: a region per household and medicines without Blue Button (family-entered, prescription photo as evidence).
+Phase 5, slice 5.1: research protocols and eConsent (per locale, representatives), pseudonyms, and RLS gating on `research.*`.
