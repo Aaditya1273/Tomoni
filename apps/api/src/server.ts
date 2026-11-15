@@ -4,6 +4,9 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { Redis } from 'ioredis';
+import { Queue } from 'bullmq';
+import { JOB_DEFAULTS, QUEUE } from '@tomoni/contracts';
+import type { BlueButton } from '@tomoni/medicines';
 import {
   hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
@@ -16,10 +19,14 @@ import { loggerOptions } from './lib/log';
 import { SESSION_COOKIE, sessionPlugin, sha256 } from './auth/session';
 import { authRoutes } from './auth/routes';
 import { systemRoutes } from './system/routes';
+import { familyRoutes } from './medicines/family';
+import { adminRoutes } from './medicines/admin';
 
 export interface BuildOptions {
   config?: Partial<ApiConfig>;
   logStream?: NodeJS.WritableStream;
+  /** Tests inject a Blue Button adapter; otherwise TOMONI_ADAPTER_BLUEBUTTON decides. */
+  blueButton?: BlueButton;
 }
 
 export async function buildServer(opts: BuildOptions = {}) {
@@ -35,7 +42,15 @@ export async function buildServer(opts: BuildOptions = {}) {
   app.setSerializerCompiler(serializerCompiler);
 
   const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 2, lazyConnect: false });
+  const queueRedis = new Redis(config.redisUrl, { maxRetriesPerRequest: null });
+  const queue = new Queue(QUEUE, {
+    connection: queueRedis,
+    prefix: config.queuePrefix,
+    defaultJobOptions: JOB_DEFAULTS,
+  });
   app.addHook('onClose', async () => {
+    await queue.close();
+    queueRedis.disconnect();
     redis.disconnect();
   });
 
@@ -97,5 +112,14 @@ export async function buildServer(opts: BuildOptions = {}) {
   await sessionPlugin(app, { allowedOrigins: config.allowedOrigins });
   await app.register(authRoutes);
   await app.register(systemRoutes(redis));
+  await app.register(
+    familyRoutes({
+      redis,
+      queue,
+      publicOrigin: config.publicOrigin,
+      ...(opts.blueButton ? { blueButton: opts.blueButton } : {}),
+    }),
+  );
+  await app.register(adminRoutes({ queue }));
   return app;
 }

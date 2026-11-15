@@ -6,6 +6,10 @@ export interface ApiConfig {
   allowedOrigins: string[];
   redisUrl: string;
   docs: boolean;
+  /** The web origin families use; OAuth callbacks come back through it. */
+  publicOrigin: string;
+  /** BullMQ key prefix, so test and e2e stacks never share a queue with dev. */
+  queuePrefix: string;
 }
 
 export function loadConfig(): ApiConfig {
@@ -18,5 +22,7 @@ export function loadConfig(): ApiConfig {
     ).split(','),
     redisUrl: e.REDIS_URL,
     docs: e.NODE_ENV !== 'production',
+    publicOrigin: process.env.TOMONI_PUBLIC_ORIGIN ?? `http://localhost:${process.env.WEB_PORT ?? 3000}`,
+    queuePrefix: process.env.TOMONI_QUEUE_PREFIX ?? 'bull',
   };
 }

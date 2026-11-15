@@ -18,6 +18,8 @@
     "@tomoni/contracts": "workspace:*",
     "@tomoni/core": "workspace:*",
     "@tomoni/db": "workspace:*",
+    "@tomoni/medicines": "workspace:*",
+    "bullmq": "^6.7.6",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "fastify-type-provider-zod": "^7.0.0",
