@@ -8,6 +8,7 @@ import { Redis } from 'ioredis';
 import { JOB_DEFAULTS, JobPayloads, QUEUE, type JobName } from '@tomoni/contracts';
 import { closePools, env } from '@tomoni/db';
 import { deps, handlers } from './handlers';
+import { isDead } from './dlq';
 import { startRelay } from './relay';
 
 const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
@@ -57,6 +58,8 @@ worker.on('failed', (job, err) =>
       job: job?.name,
       id: job?.id,
       attempt: job?.attemptsMade,
+      // Out of retries: kept in the failed set for `pnpm --filter @tomoni/worker dlq` (RUNBOOK).
+      deadLetter: isDead(job),
       error: err.message.slice(0, 200),
     }),
   ),

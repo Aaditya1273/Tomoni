@@ -6,7 +6,9 @@
     "dev": "tsx watch --clear-screen=false src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc -p .",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "dlq": "tsx src/dlq-cli.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tomoni/agent": "workspace:*",
@@ -22,6 +24,7 @@
     "ioredis": "^6.0.0"
   },
   "devDependencies": {
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.0"
   }
 }
