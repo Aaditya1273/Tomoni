@@ -6,7 +6,15 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ApcmList, CarePlanItem, DeskPatient, ErrorBody, Month, PracticeReport } from '@tomoni/contracts';
+import {
+  ApcmList,
+  CarePlanItem,
+  DeskPatient,
+  DeskQueue,
+  ErrorBody,
+  Month,
+  PracticeReport,
+} from '@tomoni/contracts';
 import {
   APCM_RATE_CENTS,
   buildApcmMonth,
@@ -35,6 +43,95 @@ const planItem = (p: typeof schema.carePlan.$inferSelect) => ({
 });
 
 export const deskRoutes: FastifyPluginAsyncZod = async (app) => {
+  /** Flags, physician approvals and unsigned care plans for the caller's practices, in one list. */
+  app.get(
+    '/api/desk/queue',
+    { preHandler: STAFF, schema: { tags: ['desk'], response: { 200: DeskQueue } } },
+    async (req) => {
+      const s = req.auth!.scope;
+      return withScope('app', s, async (db) => {
+        const ids = sql.param(s.staffPracticeIds);
+        const { rows } = await db.execute<{
+          kind: 'flag' | 'approval' | 'care_plan';
+          id: string;
+          patient_id: string;
+          urgency: number;
+          created_at: string;
+          flag_class: string | null;
+          flag_status: string | null;
+          channel: string | null;
+          skill: string | null;
+          drug: string | null;
+          warning_id: string | null;
+          version: number | null;
+        }>(sql`
+          WITH pts AS (SELECT id FROM care.patient WHERE practice_id = ANY(${ids}::uuid[]))
+          SELECT 'flag' AS kind, f.id, f.patient_id, f.urgency, f.created_at::text, f.class AS flag_class,
+                 f.status AS flag_status, f.channel, NULL AS skill, NULL AS drug, NULL::uuid AS warning_id, NULL::int AS version
+            FROM care.nurse_flag f WHERE f.status <> 'resolved' AND f.patient_id IN (SELECT id FROM pts)
+          UNION ALL
+          SELECT 'approval', a.id, a.patient_id, 3, a.created_at::text, NULL, NULL, NULL, a.skill,
+                 coalesce(w.evidence->>'drug', (SELECT name FROM care.drug d WHERE d.rxcui = a.inputs->>'rxcui' LIMIT 1)),
+                 a.warning_id, NULL
+            FROM care.action a LEFT JOIN care.warning w ON w.id = a.warning_id
+           WHERE a.state = 'awaiting_approval' AND a.approval_class = 'physician' AND a.patient_id IN (SELECT id FROM pts)
+          UNION ALL
+          SELECT 'care_plan', cp.id, cp.patient_id, 4, cp.created_at::text, NULL, NULL, NULL, NULL, NULL, NULL, cp.version
+            FROM care.care_plan cp WHERE cp.status = 'draft' AND cp.patient_id IN (SELECT id FROM pts)
+          ORDER BY 4, 5 LIMIT 300`);
+        const people = rows.length
+          ? await db
+              .select({ id: schema.patient.id, name: schema.patient.name })
+              .from(schema.patient)
+              .where(sql`id = ANY(${sql.param([...new Set(rows.map((r) => r.patient_id))])}::uuid[])`)
+          : [];
+        const nameOf = new Map(people.map((p) => [p.id, p.name]));
+        // Flag excerpts are PHI: decrypt through Drizzle and audit each one shown.
+        const flagIds = rows.filter((r) => r.kind === 'flag').map((r) => r.id);
+        const excerpts = flagIds.length
+          ? new Map(
+              (
+                await db
+                  .select({
+                    id: schema.nurseFlag.id,
+                    excerpt: schema.nurseFlag.excerpt,
+                    patientId: schema.nurseFlag.patientId,
+                  })
+                  .from(schema.nurseFlag)
+                  .where(sql`id = ANY(${sql.param(flagIds)}::uuid[])`)
+              ).map((f) => [f.id, f.excerpt]),
+            )
+          : new Map<string, string>();
+        for (const r of rows.filter((x) => x.kind === 'flag'))
+          await audit(db, {
+            action: 'read',
+            entityType: 'nurse_flag',
+            entityId: r.id,
+            patientId: r.patient_id,
+            purpose: 'treatment',
+          });
+        return rows.map((r) => ({
+          kind: r.kind,
+          id: r.id,
+          patientId: r.patient_id,
+          patientName: nameOf.get(r.patient_id) ?? '',
+          urgency: r.urgency,
+          createdAt: new Date(r.created_at).toISOString(),
+          ...(r.kind === 'flag'
+            ? {
+                flagClass: r.flag_class as never,
+                flagStatus: r.flag_status as never,
+                channel: r.channel ?? '',
+                excerpt: excerpts.get(r.id) ?? '',
+              }
+            : {}),
+          ...(r.kind === 'approval' ? { skill: r.skill ?? '', drug: r.drug, warningId: r.warning_id } : {}),
+          ...(r.kind === 'care_plan' ? { version: r.version ?? 1 } : {}),
+        }));
+      });
+    },
+  );
+
   app.get(
     '/api/desk/patients/:id',
     {

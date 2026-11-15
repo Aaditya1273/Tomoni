@@ -116,6 +116,25 @@ describe('desk: patient, care plan, APCM', () => {
     expect(report).toMatchObject({ enrolled: 1, billed: 1, apcmRevenueCents: 5378, callsCompleted: 1 });
   });
 
+  it('the queue puts an emergency before a care plan, with the caller’s words, for the practice only', async () => {
+    await ownerDb()
+      .insert(schema.nurseFlag)
+      .values({
+        patientId,
+        channel: 'voice',
+        class: 'emergency',
+        matchedRule: 'en.emergency.chest',
+        excerpt: 'chest pain',
+        urgency: 1,
+      });
+    await nurse.req('POST', `/api/desk/patients/${patientId}/care-plan/draft`);
+    const q = (await doctor.req('GET', '/api/desk/queue')).json();
+    expect(q.map((i: { kind: string }) => i.kind)).toEqual(['flag', 'care_plan']);
+    expect(q[0]).toMatchObject({ flagClass: 'emergency', excerpt: 'chest pain', urgency: 1 });
+    const other = await staff('physician', (await makePracticeAndHousehold()).practiceId);
+    expect((await other.req('GET', '/api/desk/queue')).json()).toEqual([]);
+  });
+
   it('rejects malformed months', async () => {
     expect((await desk.req('GET', '/api/desk/apcm?month=2026-13')).statusCode).toBe(400);
   });

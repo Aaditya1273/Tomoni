@@ -274,7 +274,16 @@
       "tasks": "Tasks Tomoni finished",
       "caught": "Problems caught before they hit",
       "rateNote": "At CY2026 national Medicare rates; your local rate differs."
-    }
+    },
+    "planToSign": "Care plan v{v} to sign",
+    "selected": "{n, plural, one {# item selected} other {# items selected}}. Shift+S signs them.",
+    "evidence": "Evidence",
+    "evidenceFlag": "What the patient said ({channel}):",
+    "evidenceRenewal": "{drug}: recent fills from pharmacy claims.",
+    "days": "days",
+    "noRefillsLeft": "No refills left on the current prescription.",
+    "shortcutSelect": "Select or unselect",
+    "shortcutSignAll": "Sign all selected"
   },
   "ops": {
     "title": "Escalations",

@@ -376,3 +376,26 @@ export const PracticeReport = z.object({
   problemsCaughtEarly: z.number(),
 });
 export type PracticeReport = z.infer<typeof PracticeReport>;
+
+/** One row of the doctor desk queue (§5.6): everything that needs a person, most urgent first. */
+export const QueueItem = z.object({
+  kind: z.enum(['flag', 'approval', 'care_plan']),
+  id: z.uuid(),
+  patientId: z.uuid(),
+  patientName: z.string(),
+  urgency: z.number(), // 1 = now … 4 = routine
+  createdAt: z.string(),
+  // flag
+  flagClass: FlagClass.optional(),
+  excerpt: z.string().optional(),
+  flagStatus: z.enum(['open', 'acknowledged', 'resolved']).optional(),
+  channel: z.string().optional(),
+  // approval
+  skill: z.string().optional(),
+  drug: z.string().nullable().optional(),
+  warningId: z.uuid().nullable().optional(),
+  // care plan
+  version: z.number().optional(),
+});
+export type QueueItem = z.infer<typeof QueueItem>;
+export const DeskQueue = z.array(QueueItem);

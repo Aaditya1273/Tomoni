@@ -274,7 +274,16 @@
       "tasks": "Tomoni ने जो काम पूरे किए",
       "caught": "समय से पहले पकड़ी गई समस्याएँ",
       "rateNote": "2026 की राष्ट्रीय Medicare दरों पर; आपकी स्थानीय दर अलग हो सकती है।"
-    }
+    },
+    "planToSign": "हस्ताक्षर के लिए केयर प्लान v{v}",
+    "selected": "{n, plural, one {# चुना गया} other {# चुने गए}}। Shift+S से सब पर हस्ताक्षर करें।",
+    "evidence": "सबूत",
+    "evidenceFlag": "मरीज़ ने क्या कहा ({channel}):",
+    "evidenceRenewal": "{drug}: फ़ार्मेसी क्लेम से हाल के रीफ़िल।",
+    "days": "दिन",
+    "noRefillsLeft": "मौजूदा पर्चे पर कोई रीफ़िल बाकी नहीं।",
+    "shortcutSelect": "चुनें या हटाएँ",
+    "shortcutSignAll": "सभी चुने हुए पर हस्ताक्षर करें"
   },
   "ops": {
     "title": "एस्केलेशन",

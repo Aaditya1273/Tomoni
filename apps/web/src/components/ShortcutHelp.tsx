@@ -25,6 +25,8 @@ export function ShortcutHelp() {
     ['j', t('shortcutNext')],
     ['k', t('shortcutPrev')],
     ['s', t('shortcutSign')],
+    ['x', t('shortcutSelect')],
+    ['Shift+S', t('shortcutSignAll')],
     ['?', t('shortcutHelp')],
   ];
   return (

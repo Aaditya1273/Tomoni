@@ -43,4 +43,30 @@ test.describe.serial('care plan and APCM billing', () => {
     await expect(page.locator('[data-metric="revenue"]')).not.toContainText('$0.00');
     await expectAccessible(page);
   });
+
+  test('keyboard first: x selects, Shift+S signs, with evidence beside the queue', async ({ page }, info) => {
+    await signIn(page, 'dr.rao@demo.tomoni.test');
+    await passMfa(page, 'dr.rao@demo.tomoni.test');
+    // Raj gets version 2 of his plan to sign.
+    await page.goto('/desk/billing');
+    await page
+      .locator('tr')
+      .filter({ hasText: 'Raj Patel' })
+      .getByRole('link', { name: 'Raj Patel' })
+      .click();
+    await page.getByRole('button', { name: 'Draft care plan' }).click();
+    await expect(page.locator('[data-plan-status="draft"]')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Queue' }).click();
+    const row = page.locator('li[data-plan="draft"]').filter({ hasText: 'Raj Patel' });
+    await row.click({ position: { x: 5, y: 5 } });
+    await expect(row).toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('[data-evidence="care_plan"]')).toContainText('Clopidogrel 75 mg tablet');
+    await expectAccessible(page);
+    await snap(page, info, 'desk-queue');
+    await page.keyboard.press('x');
+    await expect(page.getByText('1 item selected. Shift+S signs them.')).toBeVisible();
+    await page.keyboard.press('Shift+S');
+    await expect(row).toHaveCount(0);
+  });
 });
