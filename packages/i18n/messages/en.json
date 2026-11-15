@@ -138,7 +138,48 @@
     "shortcutPrev": "Previous item",
     "shortcutSign": "Sign",
     "shortcutHelp": "Show shortcuts",
-    "detailEmpty": "Pick an item from the queue. Its evidence shows here, so you never have to look anything up."
+    "detailEmpty": "Pick an item from the queue. Its evidence shows here, so you never have to look anything up.",
+    "flagsTitle": "Nurse flags",
+    "flagsLive": "Live",
+    "flagsOffline": "Reconnecting…",
+    "flagNew": "New nurse flag: {class} for {name}",
+    "class": {
+      "emergency": "Emergency",
+      "self_harm": "Self-harm risk",
+      "symptom": "Symptom",
+      "medication_change": "Medication change"
+    },
+    "acknowledge": "Acknowledge",
+    "acknowledged": "Acknowledged",
+    "resolve": "Resolve",
+    "resolveNote": "What was done",
+    "resolveSave": "Save and resolve",
+    "cancel": "Cancel",
+    "via": "{channel}, {time}",
+    "channel": {
+      "simulator": "Simulated call",
+      "voice": "Call",
+      "sms": "Text",
+      "whatsapp": "WhatsApp",
+      "family_app": "Family app"
+    },
+    "simulatorLink": "Call simulator",
+    "simTitle": "Call simulator",
+    "simHelp": "Test the daily call end to end. You type as the patient; nothing is dialed. Flags you trigger reach the nurse queue like real ones.",
+    "simPatient": "Patient",
+    "simStart": "Start call",
+    "simYou": "Patient",
+    "simTomoni": "Tomoni",
+    "simReply": "Reply as the patient",
+    "simSend": "Send",
+    "simEnded": "Call ended: {outcome}",
+    "simOutcome": {
+      "completed": "completed",
+      "escalated": "escalated to emergency"
+    },
+    "simFlagged": "Nurse flag raised: {class}",
+    "simNoConsent": "This patient hasn't agreed to calls, so Tomoni won't call them.",
+    "simError": "Couldn't reach the call engine. Try again."
   },
   "ops": {
     "title": "Escalations",

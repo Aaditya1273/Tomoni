@@ -7,6 +7,7 @@ import { Redis } from 'ioredis';
 import { Queue } from 'bullmq';
 import { JOB_DEFAULTS, QUEUE } from '@tomoni/contracts';
 import type { BlueButton } from '@tomoni/medicines';
+import type { ConversationLLM } from '@tomoni/voice';
 import {
   hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
@@ -21,12 +22,16 @@ import { authRoutes } from './auth/routes';
 import { systemRoutes } from './system/routes';
 import { familyRoutes } from './medicines/family';
 import { adminRoutes } from './medicines/admin';
+import { eventRoutes } from './events/routes';
+import { callRoutes } from './calls/routes';
 
 export interface BuildOptions {
   config?: Partial<ApiConfig>;
   logStream?: NodeJS.WritableStream;
   /** Tests inject a Blue Button adapter; otherwise TOMONI_ADAPTER_BLUEBUTTON decides. */
   blueButton?: BlueButton;
+  /** Tests inject the conversation LLM; otherwise TOMONI_ADAPTER_LLM decides. */
+  llm?: ConversationLLM;
 }
 
 export async function buildServer(opts: BuildOptions = {}) {
@@ -121,5 +126,7 @@ export async function buildServer(opts: BuildOptions = {}) {
     }),
   );
   await app.register(adminRoutes({ queue }));
+  await app.register(eventRoutes(config.redisUrl));
+  await app.register(callRoutes({ simulator: config.simulator, ...(opts.llm ? { llm: opts.llm } : {}) }));
   return app;
 }

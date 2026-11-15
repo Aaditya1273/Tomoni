@@ -230,3 +230,49 @@ export const DataFiles = z.array(
   }),
 );
 export type DataFiles = z.infer<typeof DataFiles>;
+
+// ─── live events (outbox → Redis → SSE) ─────────────────────────────────────
+export const EVENTS_CHANNEL = 'tomoni:events';
+/** What reaches a browser: ids and types only, never PHI. Clients refetch what changed. */
+export const AppEvent = z.object({
+  id: z.number(),
+  topic: z.string(),
+  aggregateType: z.string(),
+  aggregateId: z.uuid(),
+  practiceId: z.uuid().nullable(),
+  householdId: z.uuid().nullable(),
+  payload: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
+});
+export type AppEvent = z.infer<typeof AppEvent>;
+
+// ─── calls and nurse flags (Phase 3) ─────────────────────────────────────────
+export const FlagClass = z.enum(['emergency', 'symptom', 'medication_change', 'self_harm']);
+export const SimStartBody = z.strictObject({ patientId: z.uuid() });
+export const SimTurnBody = z.strictObject({ text: z.string().trim().min(1).max(1000) });
+export const SimTurnResult = z.object({
+  callId: z.uuid(),
+  say: z.array(z.string()),
+  ended: z.boolean(),
+  outcome: z.enum(['completed', 'escalated']).nullable(),
+  flags: z.array(z.object({ id: z.uuid(), class: FlagClass, urgency: z.number() })),
+});
+export type SimTurnResult = z.infer<typeof SimTurnResult>;
+export const DeskPatients = z.array(z.object({ id: z.uuid(), name: z.string(), locale: z.string() }));
+export type DeskPatients = z.infer<typeof DeskPatients>;
+export const NurseFlagItem = z.object({
+  id: z.uuid(),
+  patientId: z.uuid(),
+  patientName: z.string(),
+  class: FlagClass,
+  urgency: z.number(),
+  status: z.enum(['open', 'acknowledged', 'resolved']),
+  excerpt: z.string(),
+  matchedRule: z.string(),
+  channel: z.string(),
+  callId: z.uuid().nullable(),
+  createdAt: z.string(),
+  acknowledgedAt: z.string().nullable(),
+});
+export const NurseFlags = z.array(NurseFlagItem);
+export type NurseFlagItem = z.infer<typeof NurseFlagItem>;
+export const ResolveFlagBody = z.strictObject({ note: z.string().trim().min(1).max(1000) });

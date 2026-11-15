@@ -129,6 +129,9 @@ const NO = [
 const SOME = ['some', 'few', 'half', 'kuch', 'thodi', 'थोड़ी', 'कुछ'];
 const GOOD = [
   'fine',
+  'okay',
+  'ok',
+  'alright',
   'good',
   'great',
   'well',

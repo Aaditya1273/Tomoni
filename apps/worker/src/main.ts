@@ -8,6 +8,7 @@ import { Redis } from 'ioredis';
 import { JOB_DEFAULTS, JobPayloads, QUEUE, type JobName } from '@tomoni/contracts';
 import { closePools, env } from '@tomoni/db';
 import { handlers } from './handlers';
+import { startRelay } from './relay';
 
 const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
 const prefix = process.env.TOMONI_QUEUE_PREFIX ?? 'bull';
@@ -46,7 +47,9 @@ worker.on('failed', (job, err) =>
   ),
 );
 
-console.warn(`worker listening on queue "${QUEUE}"`);
+const publisher = new Redis(env().REDIS_URL);
+const stopRelay = await startRelay(publisher);
+console.warn(`worker listening on queue "${QUEUE}", relaying the outbox`);
 
 // Liveness for orchestrators and the e2e stack: 200 while the worker is running.
 const healthPort = Number(process.env.TOMONI_WORKER_HEALTH_PORT ?? 0);
@@ -57,6 +60,8 @@ if (healthPort)
   );
 for (const sig of ['SIGINT', 'SIGTERM'] as const)
   process.on(sig, async () => {
+    await stopRelay();
+    publisher.disconnect();
     await worker.close();
     await queue.close();
     connection.disconnect();

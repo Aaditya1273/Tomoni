@@ -10,6 +10,8 @@ export interface ApiConfig {
   publicOrigin: string;
   /** BullMQ key prefix, so test and e2e stacks never share a queue with dev. */
   queuePrefix: string;
+  /** The browser call simulator (§5.4) exists outside production only. */
+  simulator: boolean;
 }
 
 export function loadConfig(): ApiConfig {
@@ -24,5 +26,6 @@ export function loadConfig(): ApiConfig {
     docs: e.NODE_ENV !== 'production',
     publicOrigin: process.env.TOMONI_PUBLIC_ORIGIN ?? `http://localhost:${process.env.WEB_PORT ?? 3000}`,
     queuePrefix: process.env.TOMONI_QUEUE_PREFIX ?? 'bull',
+    simulator: e.NODE_ENV !== 'production',
   };
 }

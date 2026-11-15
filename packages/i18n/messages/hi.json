@@ -138,7 +138,48 @@
     "shortcutPrev": "पिछला",
     "shortcutSign": "साइन करें",
     "shortcutHelp": "शॉर्टकट दिखाएँ",
-    "detailEmpty": "कतार से कोई आइटम चुनें। उसका पूरा सबूत यहीं दिखेगा, ताकि आपको कुछ ढूँढना न पड़े।"
+    "detailEmpty": "कतार से कोई आइटम चुनें। उसका पूरा सबूत यहीं दिखेगा, ताकि आपको कुछ ढूँढना न पड़े।",
+    "flagsTitle": "नर्स फ़्लैग",
+    "flagsLive": "लाइव",
+    "flagsOffline": "फिर से जुड़ रहा है…",
+    "flagNew": "नया नर्स फ़्लैग: {name} के लिए {class}",
+    "class": {
+      "emergency": "इमरजेंसी",
+      "self_harm": "ख़ुद को नुकसान का ख़तरा",
+      "symptom": "लक्षण",
+      "medication_change": "दवा में बदलाव"
+    },
+    "acknowledge": "देख लिया",
+    "acknowledged": "देख लिया गया",
+    "resolve": "हल करें",
+    "resolveNote": "क्या किया गया",
+    "resolveSave": "सहेजें और हल करें",
+    "cancel": "रद्द करें",
+    "via": "{channel}, {time}",
+    "channel": {
+      "simulator": "सिम्युलेटेड कॉल",
+      "voice": "कॉल",
+      "sms": "मैसेज",
+      "whatsapp": "WhatsApp",
+      "family_app": "परिवार ऐप"
+    },
+    "simulatorLink": "कॉल सिम्युलेटर",
+    "simTitle": "कॉल सिम्युलेटर",
+    "simHelp": "रोज़ की कॉल को शुरू से आख़िर तक जाँचें। आप मरीज़ बनकर लिखते हैं; कोई नंबर नहीं मिलाया जाता। आपके बनाए फ़्लैग असली फ़्लैग की तरह नर्स की कतार में जाते हैं।",
+    "simPatient": "मरीज़",
+    "simStart": "कॉल शुरू करें",
+    "simYou": "मरीज़",
+    "simTomoni": "Tomoni",
+    "simReply": "मरीज़ की तरह जवाब दें",
+    "simSend": "भेजें",
+    "simEnded": "कॉल ख़त्म: {outcome}",
+    "simOutcome": {
+      "completed": "पूरी हुई",
+      "escalated": "इमरजेंसी में भेजी गई"
+    },
+    "simFlagged": "नर्स फ़्लैग बना: {class}",
+    "simNoConsent": "इस मरीज़ ने कॉल के लिए सहमति नहीं दी है, इसलिए Tomoni उन्हें कॉल नहीं करेगा।",
+    "simError": "कॉल इंजन से संपर्क नहीं हो सका। फिर कोशिश करें।"
   },
   "ops": {
     "title": "एस्केलेशन",

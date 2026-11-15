@@ -68,6 +68,9 @@ importers:
       '@tomoni/medicines':
         specifier: workspace:*
         version: link:../../packages/medicines
+      '@tomoni/voice':
+        specifier: workspace:*
+        version: link:../../packages/voice
       bullmq:
         specifier: ^6.7.6
         version: 6.7.6(ioredis@6.0.0)(pg@8.23.1)
