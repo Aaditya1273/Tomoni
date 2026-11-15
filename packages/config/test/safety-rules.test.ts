@@ -21,8 +21,10 @@ describe('rule 2.8: research-only code is fenced off', () => {
     'apps/web/src/app/family/page.tsx',
     'apps/web/src/lib/deep/nested.ts',
     'apps/sponsor/src/app/page.tsx',
-    'apps/api/src/routes/desk/queue.ts',
-    'apps/api/src/routes/family/card.ts',
+    'apps/api/src/desk/routes.ts',
+    'apps/api/src/family/routes.ts',
+    'apps/api/src/calls/service.ts',
+    'apps/api/src/sponsor/routes.ts',
   ])('blocks @tomoni/research in %s', async (file) => {
     expect(await lint(bad, file)).toContain('no-restricted-imports');
   });
@@ -33,7 +35,7 @@ describe('rule 2.8: research-only code is fenced off', () => {
   });
 
   it('allows it in research API routes', async () => {
-    expect(await lint(bad, 'apps/api/src/routes/research/registry.ts')).not.toContain(
+    expect(await lint(bad, 'apps/api/src/research/routes.ts')).not.toContain(
       'no-restricted-imports',
     );
   });

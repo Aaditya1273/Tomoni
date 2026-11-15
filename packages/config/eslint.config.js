@@ -7,9 +7,11 @@ import globals from 'globals';
 export const NON_RESEARCH_SURFACES = [
   'apps/web/**',
   'apps/sponsor/**',
-  'apps/api/src/routes/family/**',
-  'apps/api/src/routes/desk/**',
-  'apps/api/src/routes/ops/**',
+  // Every API module that serves a care, ops or sponsor surface. Only apps/api/src/research and
+  // the worker may import research code.
+  ...['actions', 'auth', 'calls', 'desk', 'events', 'family', 'medicines', 'sponsor', 'system'].map(
+    (d) => `apps/api/src/${d}/**`,
+  ),
 ];
 
 const researchImportBan = {
