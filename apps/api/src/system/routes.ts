@@ -11,17 +11,38 @@ export function mockAdapters(envVars: NodeJS.ProcessEnv = process.env): string[]
     .sort();
 }
 
-export const systemRoutes = (redis: Redis): FastifyPluginAsyncZod =>
+export const systemRoutes =
+  (redis: Redis): FastifyPluginAsyncZod =>
   async (app) => {
-    app.get('/api/system/health', { schema: { tags: ['system'], response: { 200: Health, 503: Health } } }, async (_req, reply) => {
-      const db = await pool('app').query('SELECT 1').then(() => true, () => false);
-      const r = await redis.ping().then((p) => p === 'PONG', () => false);
-      return reply.code(db && r ? 200 : 503).send({ ok: db && r, db, redis: r });
-    });
+    app.get(
+      '/api/system/health',
+      { config: { rateLimit: false }, schema: { tags: ['system'], response: { 200: Health, 503: Health } } },
+      async (_req, reply) => {
+        const db = await pool('app')
+          .query('SELECT 1')
+          .then(
+            () => true,
+            () => false,
+          );
+        const r = await redis.ping().then(
+          (p) => p === 'PONG',
+          () => false,
+        );
+        return reply.code(db && r ? 200 : 503).send({ ok: db && r, db, redis: r });
+      },
+    );
 
     // Drives the SANDBOX badge on every screen (BUILD_PROMPT rule 0.3).
-    app.get('/api/system/sandbox', { schema: { tags: ['system'], response: { 200: SandboxStatus } } }, async () => {
-      const mocks = mockAdapters();
-      return { sandbox: mocks.length > 0 || !realDataEnabled(), mockAdapters: mocks, realDataEnabled: realDataEnabled() };
-    });
+    app.get(
+      '/api/system/sandbox',
+      { config: { rateLimit: false }, schema: { tags: ['system'], response: { 200: SandboxStatus } } },
+      async () => {
+        const mocks = mockAdapters();
+        return {
+          sandbox: mocks.length > 0 || !realDataEnabled(),
+          mockAdapters: mocks,
+          realDataEnabled: realDataEnabled(),
+        };
+      },
+    );
   };

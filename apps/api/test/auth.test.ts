@@ -3,7 +3,15 @@ import { generate } from 'otplib';
 import { sql } from 'drizzle-orm';
 import { closePools, ownerDb, schema } from '@tomoni/db';
 import { requireAuth } from '../src/auth/session';
-import { backdateSessions, Client, makePracticeAndHousehold, makeUser, PASSWORD, testServer, totp } from './helpers';
+import {
+  backdateSessions,
+  Client,
+  makePracticeAndHousehold,
+  makeUser,
+  PASSWORD,
+  testServer,
+  totp,
+} from './helpers';
 
 let s: Awaited<ReturnType<typeof testServer>>;
 let ids: Awaited<ReturnType<typeof makePracticeAndHousehold>>;
@@ -70,16 +78,33 @@ describe('login', () => {
   });
 
   it('rejects malformed bodies with 400', async () => {
-    const res = await new Client(s.app).req('POST', '/api/auth/login', { email: 'not-an-email', password: 'x', extra: 1 });
+    const res = await new Client(s.app).req('POST', '/api/auth/login', {
+      email: 'not-an-email',
+      password: 'x',
+      extra: 1,
+    });
     expect(res.statusCode).toBe(400);
   });
 
-  it('rate-limits login to 10 per minute per IP', async () => {
-    const c = new Client(s.app, `10.200.${Date.now() % 250}.${Math.floor(Math.random() * 250)}`);
+  const freshIp = () =>
+    `10.${200 + (Date.now() % 50)}.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+
+  it('rate-limits login to 10 per minute per (IP, account)', async () => {
+    const c = new Client(s.app, freshIp());
     const codes: number[] = [];
     for (let i = 0; i < 11; i++) codes.push((await c.login('x@test.local', 'y')).statusCode);
     expect(codes.slice(0, 10).every((x) => x === 401)).toBe(true);
     expect(codes[10]).toBe(429);
+    // A colleague on the same office IP is not locked out.
+    expect((await c.login('colleague@test.local', 'y')).statusCode).toBe(401);
+  });
+
+  it('caps all logins from one IP at 60 per minute (account spraying)', async () => {
+    const c = new Client(s.app, freshIp());
+    const codes: number[] = [];
+    for (let i = 0; i < 61; i++) codes.push((await c.login(`spray${i}@test.local`, 'y')).statusCode);
+    expect(codes.slice(0, 60).every((x) => x === 401)).toBe(true);
+    expect(codes[60]).toBe(429);
   });
 });
 
@@ -169,8 +194,20 @@ describe('CSRF and Origin (SECURITY S9)', () => {
 
   it('a foreign or missing Origin is refused, even for login', async () => {
     const c = new Client(s.app);
-    expect((await c.req('POST', '/api/auth/login', { email: 'a@b.co', password: 'x' }, { origin: 'https://evil.example' })).statusCode).toBe(403);
-    expect((await c.req('POST', '/api/auth/login', { email: 'a@b.co', password: 'x' }, { origin: null })).statusCode).toBe(403);
+    expect(
+      (
+        await c.req(
+          'POST',
+          '/api/auth/login',
+          { email: 'a@b.co', password: 'x' },
+          { origin: 'https://evil.example' },
+        )
+      ).statusCode,
+    ).toBe(403);
+    expect(
+      (await c.req('POST', '/api/auth/login', { email: 'a@b.co', password: 'x' }, { origin: null }))
+        .statusCode,
+    ).toBe(403);
   });
 });
 
@@ -183,7 +220,14 @@ describe('PHI-free logs (SECURITY S13)', () => {
     await c.login(u.email, 'super-secret-wrong-pw');
     const log = s.logText();
     expect(log.length).toBeGreaterThan(0);
-    for (const secret of [u.email, PASSWORD, 'super-secret-wrong-pw', 'Raj', '2015550101', c.cookies.get('__Host-tomoni_sid')!]) {
+    for (const secret of [
+      u.email,
+      PASSWORD,
+      'super-secret-wrong-pw',
+      'Raj',
+      '2015550101',
+      c.cookies.get('__Host-tomoni_sid')!,
+    ]) {
       expect(log).not.toContain(secret);
     }
   });

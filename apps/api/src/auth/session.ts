@@ -1,7 +1,14 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { pool } from '@tomoni/db';
-import { requiresMfa, scopeFromGrants, surfacesFor, type RequestScope, type Role, type RoleGrant } from '@tomoni/core';
+import {
+  requiresMfa,
+  scopeFromGrants,
+  surfacesFor,
+  type RequestScope,
+  type Role,
+  type RoleGrant,
+} from '@tomoni/core';
 
 export const SESSION_COOKIE = '__Host-tomoni_sid';
 export const CSRF_COOKIE = '__Host-tomoni_csrf';

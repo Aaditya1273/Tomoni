@@ -29,8 +29,14 @@ export async function makeUser(role: Role, scope: { practiceId?: string; househo
 
 export async function makePracticeAndHousehold() {
   const db = ownerDb();
-  const [p] = await db.insert(schema.practice).values({ name: 'Test Practice', tz: 'America/New_York' }).returning();
-  const [h] = await db.insert(schema.household).values({ displayName: 'Test', primaryLocale: 'en' }).returning();
+  const [p] = await db
+    .insert(schema.practice)
+    .values({ name: 'Test Practice', tz: 'America/New_York' })
+    .returning();
+  const [h] = await db
+    .insert(schema.household)
+    .values({ displayName: 'Test', primaryLocale: 'en' })
+    .returning();
   return { practiceId: p!.id, householdId: h!.id };
 }
 
@@ -50,13 +56,24 @@ export class Client {
     private ip = `10.0.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`,
   ) {}
 
-  async req(method: 'GET' | 'POST', url: string, body?: unknown, opts: { csrf?: boolean; origin?: string | null } = {}) {
+  async req(
+    method: 'GET' | 'POST',
+    url: string,
+    body?: unknown,
+    opts: { csrf?: boolean; origin?: string | null } = {},
+  ) {
     const headers: Record<string, string> = {};
     if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
     if (opts.origin !== null) headers.origin = opts.origin ?? ORIGIN;
     const csrf = this.cookies.get('__Host-tomoni_csrf');
     if (csrf && opts.csrf !== false) headers['x-csrf-token'] = csrf;
-    const res = await this.app.inject({ method, url, headers, remoteAddress: this.ip, ...(body !== undefined ? { payload: body as object } : {}) });
+    const res = await this.app.inject({
+      method,
+      url,
+      headers,
+      remoteAddress: this.ip,
+      ...(body !== undefined ? { payload: body as object } : {}),
+    });
     for (const c of res.cookies) {
       if (c.value === '' || (c.expires && c.expires.getTime() < Date.now())) this.cookies.delete(c.name);
       else this.cookies.set(c.name, c.value);
@@ -72,5 +89,7 @@ export class Client {
 export const totp = (secret: string) => generate({ secret });
 
 export async function backdateSessions(userId: string, by: string) {
-  await ownerDb().execute(sql`UPDATE auth.session SET last_seen_at = now() - ${by}::interval WHERE user_id = ${userId}`);
+  await ownerDb().execute(
+    sql`UPDATE auth.session SET last_seen_at = now() - ${by}::interval WHERE user_id = ${userId}`,
+  );
 }

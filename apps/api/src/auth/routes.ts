@@ -1,5 +1,12 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { anonymousScope, absoluteLifetimeFor, idleTimeoutFor, requiresMfa, scopeFromGrants, surfacesFor } from '@tomoni/core';
+import {
+  anonymousScope,
+  absoluteLifetimeFor,
+  idleTimeoutFor,
+  requiresMfa,
+  scopeFromGrants,
+  surfacesFor,
+} from '@tomoni/core';
 import type { MfaStep } from '@tomoni/contracts';
 import { ErrorBody, LoginBody, LoginResponse, Me, MfaCodeBody, MfaEnrollResponse } from '@tomoni/contracts';
 import { audit, cipher, pool, withScope } from '@tomoni/db';
@@ -18,13 +25,27 @@ import {
 } from './session';
 
 const MFA_AAD = 'auth.user_account.mfa_secret';
-const GENERIC = { error: 'invalid_credentials', message: 'Email or password is incorrect, or the account is locked.' };
+const GENERIC = {
+  error: 'invalid_credentials',
+  message: 'Email or password is incorrect, or the account is locked.',
+};
 
 export const authRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/api/auth/login',
     {
-      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+      // Per (IP, account): a clinic's staff share one office IP, so a per-IP-only limit would lock
+      // colleagues out of each other at 9am. Spraying many accounts from one IP is capped by the
+      // per-IP limit registered in server.ts.
+      config: {
+        rateLimit: {
+          max: Number(process.env.TOMONI_LOGIN_LIMIT ?? 10), // raised only by the e2e stack
+          timeWindow: '1 minute',
+          hook: 'preHandler', // after body parsing, so the key can include the e-mail
+          keyGenerator: (req) =>
+            `login:${req.ip}:${String((req.body as { email?: unknown } | undefined)?.email ?? '').toLowerCase()}`,
+        },
+      },
       schema: { tags: ['auth'], body: LoginBody, response: { 200: LoginResponse, 401: ErrorBody } },
     },
     async (req, reply) => {
@@ -71,7 +92,11 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         audit(db, { action: 'login', entityType: 'user_account', entityId: u.id, purpose: 'security' }),
       );
       setSessionCookies(reply, token, csrf);
-      const next: z.infer<typeof MfaStep> = !requiresMfa(roles) ? 'none' : u.mfa_enabled_at ? 'verify' : 'enroll';
+      const next: z.infer<typeof MfaStep> = !requiresMfa(roles)
+        ? 'none'
+        : u.mfa_enabled_at
+          ? 'verify'
+          : 'enroll';
       return { next, surfaces: surfacesFor(roles) };
     },
   );
@@ -86,7 +111,9 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const a = req.auth!;
       if (!(await checkCode(a, req.body.code, true))) {
-        return reply.code(401).send({ error: 'bad_code', message: 'That code did not match. Try the next one.' });
+        return reply
+          .code(401)
+          .send({ error: 'bad_code', message: 'That code did not match. Try the next one.' });
       }
       await rotate(a, reply);
       return reply.code(204).send(null);
@@ -95,12 +122,19 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/api/auth/mfa/enroll',
-    { preHandler: requireAuth({ mfa: false }), schema: { tags: ['auth'], response: { 200: MfaEnrollResponse, 409: ErrorBody } } },
+    {
+      preHandler: requireAuth({ mfa: false }),
+      schema: { tags: ['auth'], response: { 200: MfaEnrollResponse, 409: ErrorBody } },
+    },
     async (req, reply) => {
       const a = req.auth!;
-      if (a.mfaEnabled) return reply.code(409).send({ error: 'already_enrolled', message: 'Already enrolled.' });
+      if (a.mfaEnabled)
+        return reply.code(409).send({ error: 'already_enrolled', message: 'Already enrolled.' });
       const secret = newTotpSecret();
-      await pool('app').query('SELECT auth.set_mfa_secret($1, $2)', [a.userId, cipher().encrypt(secret, MFA_AAD)]);
+      await pool('app').query('SELECT auth.set_mfa_secret($1, $2)', [
+        a.userId,
+        cipher().encrypt(secret, MFA_AAD),
+      ]);
       return { otpauthUri: totpUri(secret, a.email), secret };
     },
   );
@@ -115,11 +149,18 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const a = req.auth!;
       if (!(await checkCode(a, req.body.code, false))) {
-        return reply.code(401).send({ error: 'bad_code', message: 'That code did not match. Try the next one.' });
+        return reply
+          .code(401)
+          .send({ error: 'bad_code', message: 'That code did not match. Try the next one.' });
       }
       await pool('app').query('SELECT auth.enable_mfa($1)', [a.userId]);
       await withScope('app', a.scope, (db) =>
-        audit(db, { action: 'mfa_enrolled', entityType: 'user_account', entityId: a.userId, purpose: 'security' }),
+        audit(db, {
+          action: 'mfa_enrolled',
+          entityType: 'user_account',
+          entityId: a.userId,
+          purpose: 'security',
+        }),
       );
       await rotate(a, reply);
       return reply.code(204).send(null);
@@ -164,15 +205,23 @@ async function rolesOf(userId: string) {
 }
 
 async function checkCode(a: AuthContext, code: string, mustBeEnabled: boolean): Promise<boolean> {
-  const { rows } = await pool('app').query<{ mfa_secret: Buffer | null; mfa_enabled_at: Date | null; mfa_last_step: string | null }>(
-    'SELECT * FROM auth.mfa_state($1)',
-    [a.userId],
-  );
+  const { rows } = await pool('app').query<{
+    mfa_secret: Buffer | null;
+    mfa_enabled_at: Date | null;
+    mfa_last_step: string | null;
+  }>('SELECT * FROM auth.mfa_state($1)', [a.userId]);
   const s = rows[0];
   if (!s?.mfa_secret || (mustBeEnabled && !s.mfa_enabled_at)) return false;
-  const step = await verifyTotp(cipher().decrypt(s.mfa_secret, MFA_AAD), code, s.mfa_last_step ? Number(s.mfa_last_step) : null);
+  const step = await verifyTotp(
+    cipher().decrypt(s.mfa_secret, MFA_AAD),
+    code,
+    s.mfa_last_step ? Number(s.mfa_last_step) : null,
+  );
   if (step === null) return false;
-  const claimed = await pool('app').query<{ ok: boolean }>('SELECT auth.claim_mfa_step($1, $2) AS ok', [a.userId, step]);
+  const claimed = await pool('app').query<{ ok: boolean }>('SELECT auth.claim_mfa_step($1, $2) AS ok', [
+    a.userId,
+    step,
+  ]);
   return claimed.rows[0]!.ok;
 }
 
@@ -180,6 +229,10 @@ async function checkCode(a: AuthContext, code: string, mustBeEnabled: boolean): 
 async function rotate(a: AuthContext, reply: Parameters<typeof setSessionCookies>[0]) {
   const token = newToken();
   const csrf = newToken();
-  await pool('app').query('SELECT auth.session_rotate($1, $2, $3, true)', [a.sessionHash, sha256(token), sha256(csrf)]);
+  await pool('app').query('SELECT auth.session_rotate($1, $2, $3, true)', [
+    a.sessionHash,
+    sha256(token),
+    sha256(csrf),
+  ]);
   setSessionCookies(reply, token, csrf);
 }
