@@ -4,7 +4,7 @@
 
 The product and business plan: [`docs/PRODUCT.md`](docs/PRODUCT.md). The build spec: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
 
-> **Status: Phases 1 (Foundation) and 2 (Medicines core) complete.** Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status: Phases 1–3 complete** (foundation, medicines core, voice and agent). Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Run it
 
@@ -45,6 +45,10 @@ All use the password `tomoni-demo-2026`. They exist only in the synthetic seed, 
 
 For MFA, scan the QR code with any authenticator app, or type the key shown under it.
 
+**Try the call:** sign in as `nurse.priya@demo.tomoni.test`, open the desk, and click **Call simulator**. Pick Raj and start a call. Then type as Raj, for example "I'm fine", then "Mujhe chakkar aa rahe hain" (feeling dizzy). The nurse flag appears on the desk in another tab within a second. Try "chest pain" in any of the six languages.
+
+**Try the agent:** as Asha, tap **Ask Tomoni to help** on a warning. Transfers wait for Asha's **Approve**; renewals wait for `dr.rao` to **Sign** on the desk.
+
 ## Architecture
 
 ```mermaid
@@ -71,14 +75,15 @@ Details: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_MODEL](docs/DATA_MODEL.md
 
 | Integration | Now | Real adapter arrives |
 | --- | --- | --- |
-| Telephony (calls, SMS, WhatsApp) | Mock | Phase 3 (Twilio) |
-| Speech-to-text / text-to-speech | Mock | Phase 3 (vendor: D-007) |
-| Conversation LLM | Mock | Phase 3 (Claude) |
+| Telephony (calls, SMS) | Mock; the browser call simulator stands in for a phone | Built: Twilio (`TOMONI_ADAPTER_TELEPHONY=real`, needs the real-data flag) |
+| Speech-to-text / text-to-speech | Twilio's built-in speech when telephony is real | Dedicated vendor: D-007 |
+| Conversation LLM | `MockLLM` (keyword rules) | Built: Claude Opus 5.5 (`TOMONI_ADAPTER_LLM=real` + Anthropic credentials) |
+| Pharmacy portal, e-prescribing | Mock (deterministic, labeled) | Partner to be chosen (Go-Live) |
 | Medicare Blue Button 2.0 | Mock | Built: `TOMONI_ADAPTER_BLUEBUTTON=real` plus sandbox client credentials. Production also needs `TOMONI_REAL_DATA_ENABLED=true` |
 | CMS plan, formulary and pricing files | Synthetic sample in the real file format | Loader built; a full CMS release needs a streaming loader (PROGRESS) |
 | PBM change lists | Admin CSV upload with column mapping | Built |
 | Drug shortages, pharmacy closures | Synthetic sample notices | Feeds to be chosen |
-| e-Rx, fax, pharmacy portals, PGx lab | None yet | Phases 3–6 |
+| Fax, PGx lab | None yet | Phases 4–6 |
 
 Real adapters refuse to start unless `TOMONI_REAL_DATA_ENABLED=true`, and that flag stays off until legal sign-off.
 

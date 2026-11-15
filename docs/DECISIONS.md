@@ -26,6 +26,10 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-020 | Blue Button callback bound by state, not the session cookie | Accepted |
 | D-021 | Mock Blue Button data is a snapshot as of the connection date | Accepted |
 | D-022 | Seed in its own package | Accepted |
+| D-023 | Conversation LLM: Claude Opus 5.5 at low effort, structured output, no fallback model | Accepted |
+| D-024 | Daily-call scheduler is opt-in per environment | Accepted |
+| D-025 | Calls in Gujarati, Tamil, Punjabi and Bengali speak English until native scripts exist | NEEDS-FOUNDER-REVIEW |
+| D-026 | Agent code in `packages/agent`, safety matcher in `packages/core` | Accepted |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -121,3 +125,19 @@ The mock generates six months of EOBs ending on the day the link was made, keyed
 
 ## D-022: Seed in its own package
 The seed now pushes medicines through the mock Blue Button and runs the engine, so it depends on `@tomoni/medicines`, which depends on `@tomoni/db`. Keeping the seed inside `db` would make a package cycle, so it moved to `packages/seed`. The engine benchmark lives there too.
+
+## D-023: Conversation LLM: Claude Opus 5.5, low effort, structured output, no fallback model
+The LLM only fills typed slots (mood, medicines taken, wants help). Each step has its own Zod schema, enforced with structured output (`output_config.format`). Effort is `low`, because this is classification and the call is waiting. The model is `claude-opus-5-5`, configurable through `TOMONI_LLM_MODEL`.
+
+A refusal, timeout, truncation or off-schema answer becomes "unclear": the script asks once more, then moves on. The safety matcher has already run on the raw words, so a fallback model would add cost without adding safety, and none is configured.
+
+The prompt is a versioned file (`packages/voice/prompts/slot-filler.v1.md`), recorded on every call. An opt-in eval runs it against the live model (`pnpm --filter @tomoni/voice eval`). It has not been run yet, because this machine has no API credentials.
+
+## D-024: The daily-call scheduler is opt-in per environment
+With Twilio on, the scheduler dials real people every 5 minutes. It runs only with `TOMONI_CALL_SCHEDULER=on`, and Twilio itself refuses to start unless `TOMONI_REAL_DATA_ENABLED=true`. In dev and CI, calls happen through the simulator.
+
+## D-025: Calls in Gujarati, Tamil, Punjabi and Bengali speak English for now (NEEDS-FOUNDER-REVIEW)
+The call script is complete in English and Hindi. The other four locales fall back to English line by line. The safety matcher already covers all six languages, so a Gujarati speaker's emergency is still caught. What they hear is English, though, and that is not acceptable for real patients. Native speakers must write and review these scripts before any real call in those languages. Until then, the founder must decide whether to call those patients in Hindi or English, or not at all.
+
+## D-026: Agent code in `packages/agent`; the safety matcher in `packages/core`
+ARCHITECTURE put the policy engine and skill registry in `packages/core`, which has no I/O. Skills call adapters, and the runner needs the database, so they live together in `packages/agent`. `packages/core` keeps the parts that must never be wrong and need no I/O: the safety matcher and scope building. The registry's policy rules (who approves what) are still pure data, with their own tests.

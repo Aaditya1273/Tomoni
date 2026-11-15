@@ -6,20 +6,26 @@
   - Seeded households show correct, sourced warnings. Raj and Kokila carry the scripted problems; every warning names a fill or a data file version and links to its evidence.
   - The end-to-end tests pass: 44/44, desktop and mobile, with axe WCAG 2.2 AA on every new screen.
   - §6 target met: the engine reprocesses 10,000 patients in about 1 s (budget 5 minutes). Run `pnpm --filter @tomoni/seed bench`.
-- **Next: Phase 3 (Voice and agent).**
+- **Phase 3 (Voice and agent): done** on 2026-11-15. Definition of Done:
+  - A simulated call with a symptom puts a nurse flag on the desk live in **92 ms** (budget 5 s; e2e `calls.spec.ts`).
+  - The emergency-phrase tests pass in every shipped language: en, hi, gu, ta, pa and bn, native script and Latin spelling (`packages/core/test/safety.test.ts`).
+- **Next: Phase 4 (Doctor desk and APCM).**
 
 ## Test inventory (all passing)
 
 | Suite | Count | What it proves |
 | --- | --- | --- |
-| `packages/db` | 48 | RLS for 9 roles on every table, including medicines, fills, warnings and Blue Button links; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
+| `packages/db` | 59 | RLS for 9 roles on every table, including medicines, fills, warnings, Blue Button links, calls, nurse flags and actions; the disclosure and verification CHECKs; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
 | `packages/medicines` | 28 | **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
-| `apps/api` | 30 | Phase 1 auth suite, plus: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
+| `apps/api` | 46 | Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
 | `packages/ui` | 26 | Every token pair meets WCAG contrast in both themes |
 | `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved |
 | `packages/core` | 8 | Scope building; MFA and session policy per role |
 | `packages/config` | 8 | Lint fences research code off care and sponsor surfaces; raw HTML banned |
-| `apps/web` e2e | 44 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
+| `packages/core` safety | 92 | Emergency, self-harm, symptom and medication-change phrases in six languages and two scripts; statements that should not flag; denials (downgraded, never dropped; self-harm never softened); zero-width, look-alike, accent, punctuation and nukta tricks; injection-shaped caller text |
+| `packages/voice` | 17 (+9 live eval, opt-in) | Disclosure first; normal call slots; one re-ask; emergency and self-harm end the call; a symptom skips every admin step; the LLM never sees text the matcher fired on; the LLM can add a flag, never remove one; scheduler time zones, DST, quiet hours; Twilio signature against Twilio's documented example |
+| `packages/agent` | 13 | Closed registry; approval classes; no path skips approval or verification; strict inputs; the database rejects approvals from the wrong role or practice; confirm → do → verify recorded step by step; backoff then ops handoff; hostile pharmacy text stays untrusted data; plan ranking unaffected by any commission |
+| `apps/web` e2e | 48 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
 ## Log
 
@@ -30,6 +36,11 @@
 | 2026-11-15 | 2.1 Blue Button | OAuth2 + PKCE (sandbox), EOB → fill/claim mapper, idempotent ingestion, connect/callback, sync job | Unit, DB, API, e2e | `MockBlueButton` (CARIN-shaped EOBs) |
 | 2026-11-15 | 2.2 Files | CMS Part D loader (real pipe-delimited format) + synthetic sample, drug list, pharmacies, shortage and closure notices, PBM CSV mapping UI | DB, API, e2e | Sample files are synthetic, labeled as such |
 | 2026-11-15 | 2.3 Engine | Change detector, matcher, scorer; 8 warning types; upsert, resolve, audit; worker jobs (engine nightly, audit seal every 2 s) | Unit, DB, bench | — |
+| 2026-11-15 | 3.1 Safety | Multilingual matcher with normalization | 92 unit | — |
+| 2026-11-15 | 3.2–3.3 Calls | Calls, flags, actions, approvals schema; call state machine; Claude slot filler; versioned prompt | Unit, DB | `MockLLM` unless `TOMONI_ADAPTER_LLM=real` |
+| 2026-11-15 | 3.4–3.5 Live desk | Simulator, nurse flags, outbox relay, SSE, desk queue | API, e2e (92 ms) | Simulator instead of a phone |
+| 2026-11-15 | 3.6 Scheduler | Time zones and quiet hours, Twilio adapter and signed webhooks, family emergency texts | Unit, API | `MockTelephony` |
+| 2026-11-15 | 3.7 Agent | Skill registry, approvals (DB-enforced), runner with retries and ops handoff, neutral plan ranking, family/desk/ops UI | Unit, DB, API, e2e | Pharmacy portal and e-prescribing |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests
@@ -41,8 +52,17 @@
 - **Admins landed on a blank page.** `/desk` is not an admin surface, and the landing test only checked the URL. Admins now land on `/admin/data`, and the test checks that the page renders.
 - **Monthly noise:** "runs out in 10 days" fired for every medicine every month. Fixed by D-018, and price rises now need both thresholds (D-019).
 - **Drizzle expands JS arrays in SQL templates into lists.** Array parameters now go through `sql.param`.
+- **An open desk tab would have kept a clinical session alive forever.** The SSE heartbeat called the session lookup, which refreshes idle time. It now uses `auth.session_alive()`, which doesn't (0008).
+- **The "disclosure first" CHECK never fired mid-call.** `outcome IN (...)` is NULL while a call is in progress, and a NULL CHECK passes. Fixed in 0009, found by a new RLS test.
+- **Twilio webhook writes never committed.** The handler returned the Fastify reply (a thenable) from inside the transaction. The TwiML is now built inside the transaction and sent after commit.
 
 ## Known gaps
+- **Live LLM eval not run.** No Anthropic credentials on this machine. Run `pnpm --filter @tomoni/voice eval` with credentials before turning on `TOMONI_ADAPTER_LLM=real`.
+- **Real telephony is untested against Twilio.** The adapter and signed webhooks are built and tested against Twilio's documented signature example only. Speech-to-text uses Twilio's built-in recognition until the vendor decision (D-007).
+- **Call scripts for gu, ta, pa and bn** fall back to English (D-025). All new Hindi needs native review.
+- **No real pharmacy or e-prescribing partner.** Every agent action runs against labeled mocks. A real partner (Surescripts-certified) is a Go-Live item.
+- **A closure with two medicines makes two transfer actions;** the family card shows the latest one. Phase 4's activity log will list both.
+- **The LLM call runs inside the call's DB transaction** (up to 8 s). That is fine for the simulator, but phone-scale traffic should split it out.
 - **Real Blue Button sandbox not exercised end to end.** It needs client credentials from the CMS developer sandbox (`TOMONI_BB_CLIENT_ID` / `SECRET`, `TOMONI_ADAPTER_BLUEBUTTON=real`). The adapter is tested against a fake server.
 - **No full CMS release loaded yet.** The loader reads the real file format, but only the bundled synthetic sample has been loaded. A full release (gigabytes, plus the pharmacy network file, which isn't loaded at all) needs a streaming loader before production.
 - **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.
@@ -54,4 +74,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 3, slice 3.1: contact consent and the call scheduler (time zones, quiet hours, AI disclosure), then the multilingual safety matcher.
+Phase 4, slice 4.1: the keyboard-first desk queue (renewals, prior authorizations, exceptions, flags) with evidence panes and bulk sign.
