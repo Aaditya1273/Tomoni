@@ -118,6 +118,7 @@ export const familyRoutes =
           const warnings = (
             await db.execute<WarningRow>(sql`${WARNING_SQL}
                WHERE w.status = 'open' AND w.patient_id = ANY(${sql.param(ids)}::uuid[])
+                 AND w.type <> 'gene_drug_mismatch' -- gene-drug warnings go to the doctor only (§5.7)
                ORDER BY w.days_until_problem, w.type`)
           ).rows.map(toItem);
           const links = await db
@@ -172,6 +173,8 @@ export const familyRoutes =
         const found = await withScope('app', req.auth!.scope, async (db) => {
           const [r] = (await db.execute<WarningRow>(sql`${WARNING_SQL} WHERE w.id = ${req.params.id}`)).rows;
           if (!r) return null;
+          if (r.type === 'gene_drug_mismatch' && !req.auth!.scope.staffRoles.includes('physician'))
+            return null;
           const [p] = await db
             .select({ name: schema.patient.name, preferredName: schema.patient.preferredName })
             .from(schema.patient)

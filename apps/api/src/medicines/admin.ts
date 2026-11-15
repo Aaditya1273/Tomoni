@@ -66,12 +66,10 @@ export const adminRoutes =
         const { csv, label, mapping } = req.body;
         const mapped = applyPbmMapping(csv, mapping);
         if (!mapped.ok)
-          return reply
-            .code(400)
-            .send({
-              error: 'bad_mapping',
-              message: `These columns are not in the file: ${mapped.missing.join(', ')}.`,
-            });
+          return reply.code(400).send({
+            error: 'bad_mapping',
+            message: `These columns are not in the file: ${mapped.missing.join(', ')}.`,
+          });
         const saved = await withScope('app', req.auth!.scope, (db) =>
           savePbmChanges(db, {
             text: csv,

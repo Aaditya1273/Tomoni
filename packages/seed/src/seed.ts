@@ -370,15 +370,13 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
   let fills = 0;
   for (const p of people) {
     const tokens = await bb.exchange({ mockBeneficiaryId: mockBeneficiaryId(p.mbi!) });
-    await db
-      .insert(schema.bluebuttonLink)
-      .values({
-        patientId: p.id,
-        mode: 'mock',
-        fhirPatientId: tokens.fhirPatientId,
-        scope: tokens.scope,
-        lastSyncedAt: new Date(),
-      });
+    await db.insert(schema.bluebuttonLink).values({
+      patientId: p.id,
+      mode: 'mock',
+      fhirPatientId: tokens.fhirPatientId,
+      scope: tokens.scope,
+      lastSyncedAt: new Date(),
+    });
     fills += (await ingestBundles(db, p.id, await bb.fetchBundles(tokens, asOf), 'mock')).fills;
   }
   const run = await withScope('worker', systemScope('seed'), (w) => runEngine(w, { today: asOf }));

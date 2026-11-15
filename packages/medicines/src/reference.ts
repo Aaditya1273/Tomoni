@@ -160,16 +160,14 @@ export async function loadShortages(
     droppedCount: dropped,
   });
   if (versionId && rows.length)
-    await db
-      .insert(schema.drugShortage)
-      .values(
-        rows.map((r) => ({
-          versionId,
-          rxcui: r.rxcui,
-          reportedOn: r.reported_on,
-          resolvedOn: r.resolved_on,
-        })),
-      );
+    await db.insert(schema.drugShortage).values(
+      rows.map((r) => ({
+        versionId,
+        rxcui: r.rxcui,
+        reportedOn: r.reported_on,
+        resolvedOn: r.resolved_on,
+      })),
+    );
   return versionId;
 }
 
