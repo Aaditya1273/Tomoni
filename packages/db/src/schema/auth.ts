@@ -50,4 +50,3 @@ export const session = auth.table('session', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   userAgent: text('user_agent'),
 });
-

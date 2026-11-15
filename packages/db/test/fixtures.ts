@@ -15,7 +15,10 @@ export async function buildWorld() {
     care.patient, care.household, care.clinician, care.practice, auth.role_grant, auth.session,
     auth.identity, auth.user_account CASCADE`);
 
-  const [A] = await db.insert(practice).values({ name: 'Rao Family Medicine', tz: 'America/New_York' }).returning();
+  const [A] = await db
+    .insert(practice)
+    .values({ name: 'Rao Family Medicine', tz: 'America/New_York' })
+    .returning();
   const [B] = await db
     .insert(practice)
     .values({ name: 'Edison Primary Care', tz: 'America/New_York', offshoreOpsAccess: true })
@@ -52,7 +55,9 @@ export async function buildWorld() {
     ])
     .returning();
 
-  await db.insert(familyMember).values({ householdId: H1!.id, displayName: 'Asha', relationship: 'daughter' });
+  await db
+    .insert(familyMember)
+    .values({ householdId: H1!.id, displayName: 'Asha', relationship: 'daughter' });
   await db.insert(careConsent).values({
     patientId: raj!.id,
     practiceId: A!.id,
@@ -86,7 +91,19 @@ export async function buildWorld() {
   }
   const scope = (u: keyof typeof grants): RequestScope => scopeFromGrants(users[u]!, grants[u]!);
 
-  return { A: A!, B: B!, H1: H1!, H2: H2!, H3: H3!, raj: raj!, meera: meera!, lata: lata!, sam: sam!, users, scope };
+  return {
+    A: A!,
+    B: B!,
+    H1: H1!,
+    H2: H2!,
+    H3: H3!,
+    raj: raj!,
+    meera: meera!,
+    lata: lata!,
+    sam: sam!,
+    users,
+    scope,
+  };
 }
 
 function grant(role: RoleGrant['role'], ids: Partial<RoleGrant> = {}): RoleGrant {

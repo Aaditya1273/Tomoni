@@ -10,14 +10,25 @@ beforeAll(async () => {
 });
 afterAll(closePools);
 
-const seal = () => withScope('worker', systemScope('audit-sealer'), (db) => db.execute(sql`SELECT audit.seal()`));
+const seal = () =>
+  withScope('worker', systemScope('audit-sealer'), (db) => db.execute(sql`SELECT audit.seal()`));
 const verify = async () =>
-  (await withScope('worker', systemScope('audit-verify'), (db) => db.execute<{ v: string | null }>(sql`SELECT audit.verify() AS v`))).rows[0]!.v;
+  (
+    await withScope('worker', systemScope('audit-verify'), (db) =>
+      db.execute<{ v: string | null }>(sql`SELECT audit.verify() AS v`),
+    )
+  ).rows[0]!.v;
 
 describe('SECURITY S5: audit log', () => {
   it('records the actor from the request scope, not from arguments', async () => {
     await withScope('app', w.scope('drrao'), (db) =>
-      audit(db, { action: 'read', entityType: 'patient', entityId: w.raj.id, patientId: w.raj.id, purpose: 'treatment' }),
+      audit(db, {
+        action: 'read',
+        entityType: 'patient',
+        entityId: w.raj.id,
+        patientId: w.raj.id,
+        purpose: 'treatment',
+      }),
     );
     const [row] = await ownerDb()
       .select()
@@ -33,7 +44,13 @@ describe('SECURITY S5: audit log', () => {
   it('seals into an intact chain', async () => {
     for (let i = 0; i < 5; i++) {
       await withScope('app', w.scope('nurseA'), (db) =>
-        audit(db, { action: 'read', entityType: 'patient', entityId: w.sam.id, patientId: w.sam.id, purpose: 'treatment' }),
+        audit(db, {
+          action: 'read',
+          entityType: 'patient',
+          entityId: w.sam.id,
+          patientId: w.sam.id,
+          purpose: 'treatment',
+        }),
       );
     }
     await seal();
@@ -46,12 +63,16 @@ describe('SECURITY S5: audit log', () => {
       sql`DELETE FROM audit.event`,
       sql`INSERT INTO audit.event (actor_kind, actor_id, action, entity_type, purpose) VALUES ('user','x','read','x','support')`,
     ]) {
-      expect(await pgError(withScope('app', w.scope('admin'), (db) => db.execute(q)))).toMatch(/permission denied/);
+      expect(await pgError(withScope('app', w.scope('admin'), (db) => db.execute(q)))).toMatch(
+        /permission denied/,
+      );
     }
   });
 
   it('even the owner is blocked by the append-only trigger', async () => {
-    await expect(pool('owner').query(`UPDATE audit.event SET purpose = 'support'`)).rejects.toThrow(/append-only/);
+    await expect(pool('owner').query(`UPDATE audit.event SET purpose = 'support'`)).rejects.toThrow(
+      /append-only/,
+    );
     await expect(pool('owner').query(`DELETE FROM audit.event`)).rejects.toThrow(/append-only/);
     await expect(pool('owner').query(`TRUNCATE audit.event`)).rejects.toThrow(/append-only/);
   });
@@ -74,11 +95,17 @@ describe('SECURITY S5: audit log', () => {
 
   it('family can see who accessed their own relative', async () => {
     const rows = await withScope('app', w.scope('asha'), (db) =>
-      db.select().from(schema.auditEvent).where(sql`patient_id = ${w.raj.id}`),
+      db
+        .select()
+        .from(schema.auditEvent)
+        .where(sql`patient_id = ${w.raj.id}`),
     );
     expect(rows.length).toBeGreaterThan(0);
     const other = await withScope('app', w.scope('asha'), (db) =>
-      db.select().from(schema.auditEvent).where(sql`patient_id = ${w.sam.id}`),
+      db
+        .select()
+        .from(schema.auditEvent)
+        .where(sql`patient_id = ${w.sam.id}`),
     );
     expect(other).toHaveLength(0);
   });

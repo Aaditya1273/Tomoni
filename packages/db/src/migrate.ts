@@ -16,12 +16,14 @@ export async function migrate(log: (m: string) => void = () => {}): Promise<stri
   await db.query(`CREATE TABLE IF NOT EXISTS public.schema_migrations (
     name text PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`);
   const applied = new Map(
-    (await db.query<{ name: string; sha256: string }>('SELECT name, sha256 FROM public.schema_migrations')).rows.map(
-      (r) => [r.name, r.sha256],
-    ),
+    (
+      await db.query<{ name: string; sha256: string }>('SELECT name, sha256 FROM public.schema_migrations')
+    ).rows.map((r) => [r.name, r.sha256]),
   );
   const ran: string[] = [];
-  for (const file of readdirSync(DIR).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort()) {
+  for (const file of readdirSync(DIR)
+    .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+    .sort()) {
     const body = readFileSync(path.join(DIR, file), 'utf8');
     const sum = createHash('sha256').update(body).digest('hex');
     const prev = applied.get(file);
@@ -49,7 +51,8 @@ export async function migrate(log: (m: string) => void = () => {}): Promise<stri
 
 /** Drop everything. Dev/test only; refuses when real data is enabled. */
 export async function reset(): Promise<void> {
-  if (realDataEnabled() || process.env.NODE_ENV === 'production') throw new Error('reset refused: real data enabled');
+  if (realDataEnabled() || process.env.NODE_ENV === 'production')
+    throw new Error('reset refused: real data enabled');
   await pool('owner').query(`
     DROP SCHEMA IF EXISTS app, auth, care, research, audit, sponsor CASCADE;
     DROP TABLE IF EXISTS public.schema_migrations;`);

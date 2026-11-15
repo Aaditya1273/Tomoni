@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./seed": "./seed/seed.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",
@@ -15,6 +16,7 @@
     "reset": "tsx src/cli.ts reset"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "@tomoni/core": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg": "^8.23.1",

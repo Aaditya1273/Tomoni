@@ -18,7 +18,8 @@ export class FieldCipher {
     for (const entry of keyring.split(',')) {
       const [id, b64] = entry.split(':');
       const key = Buffer.from(b64 ?? '', 'base64');
-      if (!id || key.length !== 32) throw new Error('TOMONI_FIELD_KEYS: each entry must be <id>:<base64 32 bytes>');
+      if (!id || key.length !== 32)
+        throw new Error('TOMONI_FIELD_KEYS: each entry must be <id>:<base64 32 bytes>');
       this.keys.set(id, key);
     }
     this.activeId = keyring.split(':')[0]!;

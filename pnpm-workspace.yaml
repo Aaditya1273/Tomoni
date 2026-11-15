@@ -5,3 +5,6 @@ packages:
 # Build scripts are blocked by default; only these may run them.
 allowBuilds:
   esbuild: true
+  # Prebuilt binaries arrive via optionalDependencies; their install scripts are not needed.
+  '@parcel/watcher': false
+  '@swc/core': false

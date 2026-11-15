@@ -10,7 +10,8 @@ beforeAll(async () => {
 });
 afterAll(closePools);
 
-const names = async (db: Db) => (await db.select({ name: schema.patient.name }).from(schema.patient)).map((r) => r.name).sort();
+const names = async (db: Db) =>
+  (await db.select({ name: schema.patient.name }).from(schema.patient)).map((r) => r.name).sort();
 
 describe('SECURITY S1: who sees which patients', () => {
   const cases: [string, string[]][] = [
@@ -34,7 +35,11 @@ describe('SECURITY S1: who sees which patients', () => {
 
   it('child tables follow the patient policy (consents)', async () => {
     const seen = (u: string) =>
-      withScope('app', w.scope(u as never), async (db) => (await db.select().from(schema.careConsent)).length);
+      withScope(
+        'app',
+        w.scope(u as never),
+        async (db) => (await db.select().from(schema.careConsent)).length,
+      );
     expect(await seen('asha')).toBe(1);
     expect(await seen('drrao')).toBe(1);
     expect(await seen('nurseB')).toBe(0);
@@ -58,7 +63,11 @@ describe('SECURITY S1: who can write', () => {
   it('a nurse at B cannot update a patient at A (0 rows touched), but can update her own', async () => {
     const upd = (id: string) =>
       withScope('app', w.scope('nurseB'), (db) =>
-        db.update(schema.patient).set({ locale: 'ta' }).where(eq(schema.patient.id, id)).returning({ id: schema.patient.id }),
+        db
+          .update(schema.patient)
+          .set({ locale: 'ta' })
+          .where(eq(schema.patient.id, id))
+          .returning({ id: schema.patient.id }),
       );
     expect(await upd(w.raj.id)).toHaveLength(0);
     expect(await upd(w.lata.id)).toHaveLength(1);
@@ -73,19 +82,21 @@ describe('SECURITY S1: who can write', () => {
 
   it('a nurse cannot insert a patient into another practice', async () => {
     expect(
-      await pgError(withScope('app', w.scope('nurseB'), (db) =>
-        db.insert(schema.patient).values({
-          practiceId: w.A.id,
-          householdId: w.H1.id,
-          name: 'X',
-          dob: '1950-01-01',
-          birthYear: 1950,
-          state: 'NJ',
-          locale: 'en',
-          tz: 'America/New_York',
-          medicareType: 'original',
-        }),
-      )),
+      await pgError(
+        withScope('app', w.scope('nurseB'), (db) =>
+          db.insert(schema.patient).values({
+            practiceId: w.A.id,
+            householdId: w.H1.id,
+            name: 'X',
+            dob: '1950-01-01',
+            birthYear: 1950,
+            state: 'NJ',
+            locale: 'en',
+            tz: 'America/New_York',
+            medicareType: 'original',
+          }),
+        ),
+      ),
     ).toMatch(/row-level security/);
   });
 
@@ -96,9 +107,9 @@ describe('SECURITY S1: who can write', () => {
   });
 
   it('the app role cannot read sessions or other users', async () => {
-    expect(await pgError(withScope('app', w.scope('admin'), (db) => db.select().from(schema.session)))).toMatch(
-      /permission denied/,
-    );
+    expect(
+      await pgError(withScope('app', w.scope('admin'), (db) => db.select().from(schema.session))),
+    ).toMatch(/permission denied/);
     const me = await withScope('app', w.scope('asha'), (db) => db.select().from(schema.userAccount));
     expect(me.map((u) => u.email)).toEqual(['asha@test.local']);
   });

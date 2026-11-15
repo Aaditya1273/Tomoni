@@ -10,7 +10,7 @@ const MONEY = /(payout|commission|bounty|finder|referral_?fee|incentive|bonus|_c
 
 afterAll(closePools);
 
-describe('rule 2.7: no finder\'s fees', () => {
+describe("rule 2.7: no finder's fees", () => {
   it('no table that references a clinician carries a money column', async () => {
     const { rows } = await pool('owner').query<{ table: string; column: string }>(`
       WITH clin_tables AS (

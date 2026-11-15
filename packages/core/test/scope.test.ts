@@ -12,7 +12,10 @@ const g = (role: RoleGrant['role'], ids: Partial<RoleGrant> = {}): RoleGrant => 
 
 describe('scopeFromGrants', () => {
   it('keeps each role family in its own list', () => {
-    const s = scopeFromGrants('u1', [g('nurse', { practiceId: 'P1' }), g('family_member', { householdId: 'H9' })]);
+    const s = scopeFromGrants('u1', [
+      g('nurse', { practiceId: 'P1' }),
+      g('family_member', { householdId: 'H9' }),
+    ]);
     expect(s.staffPracticeIds).toEqual(['P1']);
     expect(s.householdIds).toEqual(['H9']);
     expect(s.opsPracticeIds).toEqual([]);
@@ -27,7 +30,10 @@ describe('scopeFromGrants', () => {
   });
 
   it('patients and representatives scope to patient ids', () => {
-    const s = scopeFromGrants('u1', [g('representative', { patientId: 'X' }), g('patient', { patientId: 'Y' })]);
+    const s = scopeFromGrants('u1', [
+      g('representative', { patientId: 'X' }),
+      g('patient', { patientId: 'Y' }),
+    ]);
     expect(s.patientIds.sort()).toEqual(['X', 'Y']);
   });
 
