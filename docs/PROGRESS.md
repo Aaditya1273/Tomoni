@@ -1,50 +1,57 @@
 # Progress
 
 ## Current state
-- **Phase 1 (Foundation): done.** Definition of Done met on 2026-11-15:
-  - `pnpm dev:all` starts Postgres, Redis, the API, the web app and the sponsor portal.
-  - Role tests pass.
-  - The CI steps run green locally: format, lint, typecheck, tests, Storybook build, e2e and the dependency audit. The secret scan (gitleaks) has not run; it needs GitHub.
-- **Next: Phase 2 (Medicines core).**
+- **Phase 1 (Foundation): done** on 2026-11-15. On GitHub's first CI run, every check passed: format, lint, typecheck, tests, Storybook, e2e, the audit and gitleaks. The security job was still marked failed, because setup-node's cache post-step failed on a job that never installs; that is fixed.
+- **Phase 2 (Medicines core): done** on 2026-11-15. Definition of Done:
+  - Seeded households show correct, sourced warnings. Raj and Kokila carry the scripted problems; every warning names a fill or a data file version and links to its evidence.
+  - The end-to-end tests pass: 44/44, desktop and mobile, with axe WCAG 2.2 AA on every new screen.
+  - §6 target met: the engine reprocesses 10,000 patients in about 1 s (budget 5 minutes). Run `pnpm --filter @tomoni/seed bench`.
+- **Next: Phase 3 (Voice and agent).**
 
 ## Test inventory (all passing)
 
 | Suite | Count | What it proves |
 | --- | --- | --- |
-| `packages/db` | 34 | RLS for 9 roles × patient/consent/household/practice tables; write denials; audit chain (sealing, tamper detection, append-only even for the owner); field encryption (round-trip, nonce, column binding, rotation, no plaintext at rest); no finder's-fee columns |
-| `apps/api` | 18 | Login (generic errors, lockout, audit), MFA enroll/verify with replay protection and session rotation, idle timeouts by role, logout, CSRF + Origin, rate limits (per account, per IP spray), PHI-free logs, OpenAPI |
+| `packages/db` | 48 | RLS for 9 roles on every table, including medicines, fills, warnings and Blue Button links; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
+| `packages/medicines` | 28 | **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
+| `apps/api` | 30 | Phase 1 auth suite, plus: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
 | `packages/ui` | 26 | Every token pair meets WCAG contrast in both themes |
-| `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved; fallback for scaffold locales |
-| `packages/core` | 8 | Scope building keeps role families apart; MFA and session policy per role |
+| `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved |
+| `packages/core` | 8 | Scope building; MFA and session policy per role |
 | `packages/config` | 8 | Lint fences research code off care and sponsor surfaces; raw HTML banned |
-| `apps/web` e2e | 36 | Each demo role signs in and lands on its surface, desktop and mobile; MFA enforced; wrong-app routing; sign-out; Hindi + dark + large text persist; desk "?" shortcuts; sponsor portal isolation; CSP; axe WCAG 2.2 AA on every screen |
+| `apps/web` e2e | 44 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
 ## Log
 
 | Date | Slice | What was done | Tested | Mocked |
 | --- | --- | --- | --- | --- |
 | 2026-11-15 | Planning | Architecture, data model, security, roadmap, decisions | n/a | n/a |
-| 2026-11-15 | 1.1 Monorepo | pnpm + Turborepo, strict TS, ESLint safety rules, Prettier, Vitest | Lint-rule tests | — |
-| 2026-11-15 | 1.2 Infra | Docker Compose (Postgres 18, Redis 8), separate DB roles, `.env` generator | dev:all smoke | — |
-| 2026-11-15 | 1.3 Database | Schemas, RLS, audit chain, field encryption, outbox | 34 DB tests | — |
-| 2026-11-15 | 1.4 Auth | Sessions, MFA, CSRF, rate limits, log redaction, OpenAPI | 18 API tests | — |
-| 2026-11-15 | 1.5 UI | Design system + Storybook, i18n (en, hi; 4 scaffolds), web + sponsor shells, SANDBOX bar, CSP | Contrast, i18n, e2e + axe | All adapters |
-| 2026-11-15 | 1.6 Seed | Deterministic 500-patient world, 8 demo logins | e2e per role | — |
+| 2026-11-15 | 1.1–1.6 | Monorepo, infra, database, auth, UI, seed | See Phase 1 rows above | All adapters |
+| 2026-11-15 | 2.1 Blue Button | OAuth2 + PKCE (sandbox), EOB → fill/claim mapper, idempotent ingestion, connect/callback, sync job | Unit, DB, API, e2e | `MockBlueButton` (CARIN-shaped EOBs) |
+| 2026-11-15 | 2.2 Files | CMS Part D loader (real pipe-delimited format) + synthetic sample, drug list, pharmacies, shortage and closure notices, PBM CSV mapping UI | DB, API, e2e | Sample files are synthetic, labeled as such |
+| 2026-11-15 | 2.3 Engine | Change detector, matcher, scorer; 8 warning types; upsert, resolve, audit; worker jobs (engine nightly, audit seal every 2 s) | Unit, DB, bench | — |
+| 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests
-- **Session hooks never applied.** They were registered as an encapsulated Fastify plugin. Caught by the API tests.
-- **Pooled connection leaked a user id.** A login helper set a session-level setting on a pooled connection. Replaced by `auth.user_grants()`.
-- **Per-IP rate limits would lock out clinics and throttle server-side rendering.** Now keyed per session and per account (D-015).
-- **A submit before hydration could put the password in the URL.** Forms are now `method="post"`.
-- **Redirect loop in the sponsor portal** for non-sponsor accounts.
+- **Session hooks never applied.** They were registered as an encapsulated Fastify plugin.
+- **A pooled connection leaked a user id.** Replaced by `auth.user_grants()`.
+- **Per-IP rate limits would lock out clinics** (D-015).
+- **A submit before hydration could put the password in the URL.**
+- **Redirect loop in the sponsor portal.**
+- **Admins landed on a blank page.** `/desk` is not an admin surface, and the landing test only checked the URL. Admins now land on `/admin/data`, and the test checks that the page renders.
+- **Monthly noise:** "runs out in 10 days" fired for every medicine every month. Fixed by D-018, and price rises now need both thresholds (D-019).
+- **Drizzle expands JS arrays in SQL templates into lists.** Array parameters now go through `sql.param`.
 
 ## Known gaps
-- **Hindi copy:** written carefully, but needs review by a native speaker before any family sees it. Gujarati, Tamil, Punjabi and Bengali are scaffolds (a few strings; the rest falls back to English).
-- **Family bottom navigation:** deliberately absent until Phase 2 adds the pages it would link to.
-- **No worker app yet:** the outbox relay and the audit sealer arrive with the first jobs in Phase 2. Until then audit rows stay unsealed (the chain is verifiable after sealing).
-- **Production hardening:** key management (KMS), backup drill, load tests, Lighthouse and observability are all Phase 7.
-- **CI:** the workflow is written but has not run on GitHub yet; there is no remote.
-- **Open decisions:** D-007 to D-011 and D-014 need founder (and counsel) review.
+- **Real Blue Button sandbox not exercised end to end.** It needs client credentials from the CMS developer sandbox (`TOMONI_BB_CLIENT_ID` / `SECRET`, `TOMONI_ADAPTER_BLUEBUTTON=real`). The adapter is tested against a fake server.
+- **No full CMS release loaded yet.** The loader reads the real file format, but only the bundled synthetic sample has been loaded. A full release (gigabytes, plus the pharmacy network file, which isn't loaded at all) needs a streaming loader before production.
+- **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.
+- **No live updates yet.** The family card updates on reload. The outbox relay and SSE arrive with Phase 3.
+- **Medicine names** are simplified from RxNorm by a heuristic.
+- **Hindi copy:** the new strings also need native review. The other four Indic locales fall back to English.
+- **Family navigation:** still one page plus evidence. The activity log and family pages come in Phase 4.
+- **Warning thresholds** need founder review (D-019).
+- **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 2, slice 2.1: Blue Button sandbox OAuth and EOB → `fill`/`claim`, behind `MockBlueButton`.
+Phase 3, slice 3.1: contact consent and the call scheduler (time zones, quiet hours, AI disclosure), then the multilingual safety matcher.

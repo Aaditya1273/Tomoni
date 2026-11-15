@@ -102,18 +102,25 @@ erDiagram
 
 ### Medicines and coverage
 
+Reference data (public files, not PHI) is readable by any signed-in request and written by the worker or an admin upload. Patient data follows the patient policy.
+
 | Table | Columns | Notes |
 | --- | --- | --- |
-| `medication` | id, patient_id, rxcui, display_name, strength, form, sig_text, prescriber_clinician_id?, active, source (`claims`/`desk`/`family`/`call`) | |
-| `pharmacy` | id, ncpdp_id, npi, name, address, phone, closed_at?, source_ref | |
-| `fill` | id, patient_id, medication_id?, ndc, rxcui, fill_date, days_supply, quantity, refills_remaining?, pharmacy_id?, patient_paid_cents?, source (`bluebutton`/`mock`/`manual`), source_ref (EOB id), ingested_at | `UNIQUE(source, source_ref)` keeps ingestion idempotent |
+| `medication` | id, patient_id, rxcui, display_name, sig_text **enc**, prescriber_clinician_id?, active, source (`claims`/`desk`/`family`/`call`) | One per (patient, rxcui) |
+| `fill` | id, patient_id, medication_id?, ndc, rxcui?, fill_date, days_supply, quantity, fill_number?, refills_remaining?, pharmacy_id?, patient_paid_cents?, source (`bluebutton`/`mock`/`manual`), source_ref (EOB id), ingested_at | `UNIQUE(source, source_ref)` keeps ingestion idempotent. `refills_remaining` is null unless the EOB carries `refillsAuthorized` (D-018) |
 | `claim` | id, patient_id, kind (`inpatient`/`outpatient`/`carrier`/`snf`/`hha`/`hospice`), start_date, end_date, dx_codes (text[]), source, source_ref | Supplies the Voice Lab outcome labels |
-| `data_file_version` | id, kind (`plan`/`formulary`/`pricing`/`pbm_changes`/`negotiated_price`/`shortage`/`pharmacy_closure`), source_url, sha256 (unique), effective_date, loaded_at, row_count | Every warning cites one of these, or a fill |
+| `bluebutton_link` | patient_id, mode (`sandbox`/`mock`/`production`), fhir_patient_id **enc**, access_token **enc**, refresh_token **enc**, expires_at, scope, connected_by, connected_at, last_synced_at, revoked_at | Inserted by the patient or their household only (they sign in to Medicare.gov themselves) |
+| `data_file_version` | id, kind (`cms_partd`/`pbm_changes`/`shortage`/`pharmacy_closure`), label, source_url, sha256 (unique), effective_date, row_count, dropped_count, loaded_by, loaded_at | Every file-based warning cites one. A CMS release (plan, formulary and pricing files published together) is one version |
+| `drug` | ndc (PK), rxcui, name | NDC → RxCUI for claims; names from the drug list (CMS files carry none) |
+| `pharmacy` | id, npi (unique), name, address, phone | |
 | `plan` | id, version_id, year, contract_id, plan_id, segment_id, name, type (`pdp`/`mapd`), premium_cents, deductible_cents, formulary_id | |
-| `formulary_entry` | id, version_id, formulary_id, rxcui, tier, prior_auth, step_therapy, quantity_limit | |
-| `drug_price` | id, version_id, formulary_id, rxcui, days_supply, pharmacy_kind (`preferred`/`standard`/`mail`), cost_cents | |
-| `patient_plan` | patient_id, year, plan_id | |
-| `plan_offer` | id, patient_id, year, plan_id, total_yearly_cost_cents, rank, commission_cents_to_partner?, computed_at, inputs_hash | Ranked by cost only; commission is shown and never used to rank (rule 2.11) |
+| `formulary_entry` | version_id, formulary_id, rxcui, tier, prior_auth, step_therapy, quantity_limit | One row per RxCUI; the CMS file lists every NDC |
+| `drug_price` | version_id, contract_id, plan_id, segment_id, rxcui, days_supply (30/60/90), unit_cost | As published: dollars per unit, per plan |
+| `formulary_change` | version_id, formulary_id, rxcui, change (`removal`/`tier_change`), new_tier?, effective_date | PBM change lists (admin upload with column mapping) |
+| `drug_shortage` | version_id, rxcui, reported_on, resolved_on? | |
+| `pharmacy_closure` | version_id, pharmacy_id, closes_on | |
+| `patient_plan` | patient_id, year, contract_id, plan_id, segment_id | Keyed by the CMS plan ids, which outlive any one file version |
+| `plan_offer` | id, patient_id, year, plan_id, total_yearly_cost_cents, rank, commission_cents_to_partner?, computed_at, inputs_hash | Phase 3 (`comparePartDPlans`). Ranked by cost only; commission is shown and never used to rank (rule 2.11) |
 
 ### Warnings, actions, approvals
 

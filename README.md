@@ -4,7 +4,7 @@
 
 The product and business plan: [`docs/PRODUCT.md`](docs/PRODUCT.md). The build spec: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
 
-> **Status: Phase 1 (Foundation) complete.** Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status: Phases 1 (Foundation) and 2 (Medicines core) complete.** Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Run it
 
@@ -15,7 +15,7 @@ pnpm install
 pnpm dev:all
 ```
 
-`dev:all` creates `.env` with fresh local keys, starts Postgres 18 and Redis 8 in Docker, runs the migrations, seeds a synthetic world (3 practices, 500 patients), and starts every app:
+`dev:all` creates `.env` with fresh local keys, starts Postgres 18 and Redis 8 in Docker, runs the migrations, and seeds a synthetic world: 3 practices and 500 patients, whose medicines arrive through the mock Blue Button and are then checked by the warning engine. Then it starts every app and the background worker:
 
 | Surface | URL |
 | --- | --- |
@@ -24,7 +24,9 @@ pnpm dev:all
 | API and OpenAPI docs | http://localhost:4000/docs |
 | Design system (Storybook) | `pnpm --filter @tomoni/ui storybook` → http://localhost:6006 |
 
-Other commands: `pnpm test` (unit and database tests), `pnpm --filter @tomoni/web test:e2e` (Playwright on an isolated stack), `pnpm typecheck`, `pnpm lint`, `pnpm db:reset && pnpm db:seed`, `pnpm infra:down`.
+Other commands: `pnpm test` (unit and database tests), `pnpm --filter @tomoni/web test:e2e` (Playwright on an isolated stack), `pnpm typecheck`, `pnpm lint`, `pnpm db:reset && pnpm db:seed`, `pnpm --filter @tomoni/seed bench` (warning engine on 10,000 patients), `pnpm infra:down`.
+
+`TOMONI_TODAY=2026-11-15` pins "today" for the engine and the synthetic data. Tests and e2e use it, because the scripted households are written against that date.
 
 ## Demo logins
 
@@ -32,13 +34,13 @@ All use the password `tomoni-demo-2026`. They exist only in the synthetic seed, 
 
 | Email | Role | Lands on | MFA |
 | --- | --- | --- | --- |
-| `asha@demo.tomoni.test` | Family member (Raj's daughter) | Family app | No |
+| `asha@demo.tomoni.test` | Family member (Raj's daughter): sees Raj's and Kokila's medicines and warnings | Family app | No |
 | `raj@demo.tomoni.test` | Patient | Family app | No |
 | `dr.rao@demo.tomoni.test` | Physician, Rao Family Medicine | Care desk | Yes, enroll on first sign-in |
 | `nurse.priya@demo.tomoni.test` | Nurse, Rao Family Medicine | Care desk | Yes |
 | `frontdesk@demo.tomoni.test` | Front desk, Rao Family Medicine | Care desk | Yes |
 | `ops.kiran@demo.tomoni.test` | Ops agent, Sunrise Internal Medicine | Ops console | Yes |
-| `admin@demo.tomoni.test` | Admin | Care desk | Yes |
+| `admin@demo.tomoni.test` | Admin: PBM uploads, data file log | Admin (`/admin/data`) | Yes |
 | `sponsor@demo.tomoni.test` | Sponsor user | Partner portal (:3100) only | Yes |
 
 For MFA, scan the QR code with any authenticator app, or type the key shown under it.
@@ -52,7 +54,10 @@ flowchart LR
   WEB -->|/api same-origin| API[apps/api · Fastify]
   SP -->|auth + /sponsor-api only| API
   API --> PG[(Postgres 18<br/>RLS · audit chain)]
-  API --> RD[(Redis<br/>rate limits · events)]
+  API --> RD[(Redis<br/>rate limits · job queue)]
+  RD --> WK[apps/worker · BullMQ<br/>Blue Button sync · warning engine · audit sealing]
+  WK --> PG
+  WK -->|OAuth2 + PKCE| BB[Medicare Blue Button 2.0<br/>sandbox]
 ```
 
 - **The database enforces who sees what.** One row-level-security policy decides who can see a patient. Every request runs in a transaction scoped to the caller. The audit log is append-only and hash-chained.
@@ -69,8 +74,10 @@ Details: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_MODEL](docs/DATA_MODEL.md
 | Telephony (calls, SMS, WhatsApp) | Mock | Phase 3 (Twilio) |
 | Speech-to-text / text-to-speech | Mock | Phase 3 (vendor: D-007) |
 | Conversation LLM | Mock | Phase 3 (Claude) |
-| Medicare Blue Button 2.0 | Mock | Phase 2 (CMS sandbox) |
-| CMS plan and formulary files, PBM lists | None yet | Phase 2 |
+| Medicare Blue Button 2.0 | Mock | Built: `TOMONI_ADAPTER_BLUEBUTTON=real` plus sandbox client credentials. Production also needs `TOMONI_REAL_DATA_ENABLED=true` |
+| CMS plan, formulary and pricing files | Synthetic sample in the real file format | Loader built; a full CMS release needs a streaming loader (PROGRESS) |
+| PBM change lists | Admin CSV upload with column mapping | Built |
+| Drug shortages, pharmacy closures | Synthetic sample notices | Feeds to be chosen |
 | e-Rx, fax, pharmacy portals, PGx lab | None yet | Phases 3–6 |
 
 Real adapters refuse to start unless `TOMONI_REAL_DATA_ENABLED=true`, and that flag stays off until legal sign-off.
@@ -78,8 +85,8 @@ Real adapters refuse to start unless `TOMONI_REAL_DATA_ENABLED=true`, and that f
 ## Repository
 
 ```
-apps/      api · web (family, desk, ops) · sponsor
-packages/  core · db · contracts · ui · i18n · web-shared · config
+apps/      api · web (family, desk, ops, admin) · sponsor · worker
+packages/  core · db · medicines · seed · contracts · ui · i18n · web-shared · config
 infra/     docker-compose · postgres init · dev scripts
 docs/      product plan, build spec, architecture, data model, security, design, decisions, progress
 ```

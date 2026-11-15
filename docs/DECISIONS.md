@@ -21,6 +21,11 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-015 | Rate limits keyed per session and per (IP, account) | Accepted |
 | D-016 | Self-hosted Anek fonts instead of `next/font/google` | Accepted |
 | D-017 | TypeScript 6.0, not 7 | Accepted |
+| D-018 | Run-out warnings only when refills are known to be zero | Accepted |
+| D-019 | What counts as a warning: thresholds and time windows | NEEDS-FOUNDER-REVIEW |
+| D-020 | Blue Button callback bound by state, not the session cookie | Accepted |
+| D-021 | Mock Blue Button data is a snapshot as of the connection date | Accepted |
+| D-022 | Seed in its own package | Accepted |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -85,3 +90,34 @@ Lockout after 5 failed passwords (S8) still applies per account.
 
 ## D-017: TypeScript 6.0, not 7
 TypeScript 7 (the native compiler) is the current release, but `typescript-eslint` 8.72 supports only versions below 6.1. Lint rules carry product guarantees (S3, S10), so lint wins. Move to 7 when `typescript-eslint` supports it.
+
+## D-018: Run-out warnings only when refills are known to be zero
+Part D claims (PDE) carry the fill number but usually not how many refills the prescription allows. Without that, a "runs out in 10 days" warning would fire for every monthly medicine, every month, and families would learn to ignore it.
+
+**Chosen:**
+- `late_refill` comes from claims alone. It fires when the supply ended at least 3 days ago and no newer fill exists.
+- `run_out` fires only when the latest fill shows zero refills left, meaning the next fill needs the doctor. Zero comes from the EOB's CARIN `refillsAuthorized`, or later from the desk or the refill-status skill (Phase 3).
+- A medicine more than 30 days past its supply with no refill is treated as stopped.
+
+## D-019: What counts as a warning (NEEDS-FOUNDER-REVIEW)
+These are product calls with no single right answer. Each is a named constant in `packages/medicines/src/engine.ts`:
+- **Late refill:** a 3-day grace period.
+- **Stopped medicine:** 30 days past the supply.
+- **Old news:** a change that took effect more than 30 days ago is no longer warned about.
+- **Premium or price rise:** must be at least $10 *and* at least 20%. A 3% rise on an expensive drug is not news.
+- **Price comparisons:** use a 30-day cost estimated as unit cost × 30. The pricing file has no units-per-day, so this is right for once-a-day tablets and rough otherwise.
+- **Access status:** red under 15 days, amber 15–60, green over 60. The spec says red is "under 14", but that leaves day 14 in no band, so day 14 counts as red.
+- **Pharmacy closures:** one warning per patient, not one per medicine.
+
+The founder should confirm the thresholds against the manual-phase calls: which warnings families acted on, and which they ignored.
+
+## D-020: Blue Button callback bound by state, not the session cookie
+CMS redirects back cross-site, so the browser does not send the `SameSite=Strict` session cookie. Relaxing the cookie to `Lax` would weaken CSRF protection everywhere.
+
+Instead, connecting stores `{patientId, userId, PKCE verifier}` in Redis under the SHA-256 of a 256-bit state, for 10 minutes. The callback deletes it on first use and acts with that user's current grants, so RLS still decides whether the link may be written. A forged, expired or replayed state goes nowhere.
+
+## D-021: Mock Blue Button data is a snapshot as of the connection date
+The mock generates six months of EOBs ending on the day the link was made, keyed by a hash of the synthetic MBI. Re-syncing therefore returns the same EOB ids, and ingestion stays idempotent. With real data, sync uses today.
+
+## D-022: Seed in its own package
+The seed now pushes medicines through the mock Blue Button and runs the engine, so it depends on `@tomoni/medicines`, which depends on `@tomoni/db`. Keeping the seed inside `db` would make a package cycle, so it moved to `packages/seed`. The engine benchmark lives there too.
