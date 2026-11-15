@@ -77,28 +77,47 @@ async function contextFor(
   };
 }
 
-export async function startSimulatedCall(db: Db, patientId: string, llm: ConversationLLM) {
-  const { practiceId: _p, householdId: _h, ...ctx } = await contextFor(db, patientId);
+/**
+ * Open a call: disclosure first (rule 2.10). The simulator creates the row; a phone call opens
+ * the row the scheduler made, when the patient answers.
+ */
+export async function beginCall(
+  db: Db,
+  o: { patientId: string; llm: ConversationLLM; channel: 'simulator' | 'voice'; callId?: string },
+) {
+  const { practiceId: _p, householdId: _h, ...ctx } = await contextFor(db, o.patientId);
   const { state, say } = startCall(ctx);
   const stored: Stored = { state: { upcomingIndex: 0, retries: 0, slots: {} }, upcoming: ctx.upcoming };
-  const [c] = await db
-    .insert(schema.call)
-    .values({
-      patientId,
-      channel: 'simulator',
-      startedAt: new Date(),
-      locale: ctx.locale,
-      scriptVersion: SCRIPT_VERSION,
-      promptVersion: llm.promptVersion,
-      step: state.step,
-      slots: stored as never,
-      disclosurePlayed: true,
-      recordingConsent: ctx.recordingAllowed,
-      transcript: JSON.stringify(state.turns),
-    })
-    .returning({ id: schema.call.id });
-  await audit(db, { action: 'create', entityType: 'call', entityId: c!.id, patientId, purpose: 'treatment' });
-  return { callId: c!.id, say, ended: false, outcome: null, flags: [] };
+  const values = {
+    startedAt: new Date(),
+    locale: ctx.locale,
+    scriptVersion: SCRIPT_VERSION,
+    promptVersion: o.llm.promptVersion,
+    step: state.step,
+    slots: stored as never,
+    disclosurePlayed: true,
+    recordingConsent: ctx.recordingAllowed,
+    transcript: JSON.stringify(state.turns),
+  };
+  const [c] = o.callId
+    ? await db
+        .update(schema.call)
+        .set(values)
+        .where(and(eq(schema.call.id, o.callId), eq(schema.call.step, 'scheduled')))
+        .returning({ id: schema.call.id })
+    : await db
+        .insert(schema.call)
+        .values({ patientId: o.patientId, channel: o.channel, ...values })
+        .returning({ id: schema.call.id });
+  if (!c) throw new CallError('ended', 'This call has already started or ended.');
+  await audit(db, {
+    action: 'create',
+    entityType: 'call',
+    entityId: c.id,
+    patientId: o.patientId,
+    purpose: 'treatment',
+  });
+  return { callId: c.id, say, ended: false, outcome: null, flags: [] };
 }
 
 export async function callTurn(

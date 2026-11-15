@@ -14,7 +14,7 @@ import {
 import { audit, schema, withScope } from '@tomoni/db';
 import { llmFromEnv, type ConversationLLM } from '@tomoni/voice';
 import { requireAuth, type AuthContext } from '../auth/session';
-import { CallError, callTurn, startSimulatedCall } from './service';
+import { beginCall, CallError, callTurn } from './service';
 
 const STAFF = ['physician', 'nurse', 'front_desk'] as const;
 const STATUS: Record<CallError['code'], number> = { not_found: 404, no_contact_consent: 409, ended: 409 };
@@ -201,7 +201,7 @@ export const callRoutes =
       async (req, reply) => {
         try {
           return await withScope('app', req.auth!.scope, (db) =>
-            startSimulatedCall(db, req.body.patientId, llm),
+            beginCall(db, { patientId: req.body.patientId, llm, channel: 'simulator' }),
           );
         } catch (e) {
           const f = fail(e);

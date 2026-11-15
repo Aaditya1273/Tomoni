@@ -12,6 +12,8 @@ export interface ApiConfig {
   queuePrefix: string;
   /** The browser call simulator (§5.4) exists outside production only. */
   simulator: boolean;
+  /** Twilio voice webhooks; absent unless Twilio is configured. */
+  twilio: { authToken: string; publicApiOrigin: string } | null;
 }
 
 export function loadConfig(): ApiConfig {
@@ -27,5 +29,12 @@ export function loadConfig(): ApiConfig {
     publicOrigin: process.env.TOMONI_PUBLIC_ORIGIN ?? `http://localhost:${process.env.WEB_PORT ?? 3000}`,
     queuePrefix: process.env.TOMONI_QUEUE_PREFIX ?? 'bull',
     simulator: e.NODE_ENV !== 'production',
+    twilio: process.env.TOMONI_TWILIO_AUTH_TOKEN
+      ? {
+          authToken: process.env.TOMONI_TWILIO_AUTH_TOKEN,
+          publicApiOrigin:
+            process.env.TOMONI_PUBLIC_API_ORIGIN ?? `http://localhost:${process.env.API_PORT ?? 4000}`,
+        }
+      : null,
   };
 }

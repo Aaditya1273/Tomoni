@@ -13,6 +13,7 @@
     "@tomoni/core": "workspace:*",
     "@tomoni/db": "workspace:*",
     "@tomoni/medicines": "workspace:*",
+    "@tomoni/voice": "workspace:*",
     "bullmq": "^6.7.6",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0"

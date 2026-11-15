@@ -5,12 +5,13 @@
  * Payloads carry ids and types only, never PHI.
  */
 import type { Redis } from 'ioredis';
+import type { Queue } from 'bullmq';
 import { pool } from '@tomoni/db';
 
 import { EVENTS_CHANNEL } from '@tomoni/contracts';
 export { EVENTS_CHANNEL };
 
-export async function startRelay(redis: Redis): Promise<() => Promise<void>> {
+export async function startRelay(redis: Redis, queue: Queue): Promise<() => Promise<void>> {
   let busy = false;
   let again = false;
   const flush = async () => {
@@ -48,6 +49,14 @@ export async function startRelay(redis: Redis): Promise<() => Promise<void>> {
               payload: r.payload,
             }),
           );
+        // Emergencies also go to the family by text (rule 2.1), whatever channel raised them.
+        for (const r of rows)
+          if (r.topic === 'flag.created' && r.payload.urgency === 1)
+            await queue.add(
+              'notify.family',
+              { flagId: r.aggregate_id },
+              { jobId: `notify-${r.aggregate_id}` },
+            );
         if (rows.length === 500) again = true;
       } while (again);
     } finally {

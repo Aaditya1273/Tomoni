@@ -7,7 +7,7 @@ import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { JOB_DEFAULTS, JobPayloads, QUEUE, type JobName } from '@tomoni/contracts';
 import { closePools, env } from '@tomoni/db';
-import { handlers } from './handlers';
+import { deps, handlers } from './handlers';
 import { startRelay } from './relay';
 
 const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
@@ -16,6 +16,11 @@ const queue = new Queue(QUEUE, { connection, prefix, defaultJobOptions: JOB_DEFA
 
 // Seal the audit chain every 2 seconds; rerun the engine for everyone every morning.
 await queue.upsertJobScheduler('audit-seal', { every: 2000 }, { name: 'audit.seal', data: {} });
+deps.queue = queue;
+// Daily calls dial real people when Twilio is on, so the scheduler is opt-in per environment.
+if (process.env.TOMONI_CALL_SCHEDULER === 'on')
+  await queue.upsertJobScheduler('call-schedule', { every: 5 * 60_000 }, { name: 'call.schedule', data: {} });
+else await queue.removeJobScheduler('call-schedule');
 await queue.upsertJobScheduler(
   'engine-nightly',
   { pattern: '0 5 * * *', tz: 'America/New_York' },
@@ -48,7 +53,7 @@ worker.on('failed', (job, err) =>
 );
 
 const publisher = new Redis(env().REDIS_URL);
-const stopRelay = await startRelay(publisher);
+const stopRelay = await startRelay(publisher, queue);
 console.warn(`worker listening on queue "${QUEUE}", relaying the outbox`);
 
 // Liveness for orchestrators and the e2e stack: 200 while the worker is running.

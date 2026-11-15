@@ -60,6 +60,9 @@ export const JobPayloads = {
   'audit.seal': z.strictObject({}),
   'engine.run': z.strictObject({ patientIds: z.array(z.uuid()).max(10_000).optional() }),
   'bluebutton.sync': z.strictObject({ patientId: z.uuid() }),
+  'call.schedule': z.strictObject({}),
+  'call.place': z.strictObject({ callId: z.uuid() }),
+  'notify.family': z.strictObject({ flagId: z.uuid() }),
 } as const;
 export type JobName = keyof typeof JobPayloads;
 export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;

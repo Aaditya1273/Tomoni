@@ -33,6 +33,8 @@ interface Script {
   emergency: string;
   selfHarm: string;
   closing: string;
+  voicemail: string;
+  familyEmergency: string;
   item: Record<UpcomingKind, string>;
 }
 
@@ -56,6 +58,11 @@ const en: Script = {
   selfHarm:
     "I'm really sorry you're feeling this way. Please call or text 988 now to talk to someone right away. If you are in danger, call 911. I am letting {practice} and your family know.",
   closing: 'Thank you, {name}. Tomoni will call again tomorrow. Goodbye.',
+  // No name or health detail: a voicemail may be heard by anyone.
+  voicemail:
+    "This is Tomoni, an automated assistant from your doctor's office, with your daily check-in. We'll call again tomorrow.",
+  familyEmergency:
+    "Tomoni: on today's call {name} said something that may be an emergency and was told to call 911. {practice} has been alerted. Please check on {name} now.",
   item: {
     run_out: '{drug} needs a new prescription soon',
     late_refill: "{drug} hasn't been refilled",
@@ -88,6 +95,9 @@ const hi: Script = {
   selfHarm:
     'मुझे बहुत दुख है कि आप ऐसा महसूस कर रहे हैं। किसी से अभी बात करने के लिए कृपया 988 पर कॉल या मैसेज करें। अगर आप ख़तरे में हैं, तो 911 पर कॉल करें। मैं {practice} और आपके परिवार को बता रही हूँ।',
   closing: 'धन्यवाद, {name}। Tomoni कल फिर कॉल करेगा। नमस्ते।',
+  voicemail: 'मैं Tomoni हूँ, आपके डॉक्टर के दफ़्तर से एक स्वचालित सहायक, रोज़ की बातचीत के लिए। हम कल फिर कॉल करेंगे।',
+  familyEmergency:
+    'Tomoni: आज की कॉल पर {name} ने कुछ ऐसा कहा जो इमरजेंसी हो सकती है, और उन्हें 911 पर कॉल करने को कहा गया। {practice} को बता दिया गया है। कृपया अभी {name} का हाल पूछें।',
   item: {
     run_out: '{drug} के लिए जल्द नया पर्चा चाहिए',
     late_refill: '{drug} दोबारा नहीं भरी गई है',
