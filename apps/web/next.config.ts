@@ -6,6 +6,8 @@ const API = process.env.API_ORIGIN ?? 'http://127.0.0.1:4000';
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Tailwind's CSS is small: inline it so the first paint doesn't wait on a stylesheet request.
+  experimental: { inlineCss: true },
   transpilePackages: [
     '@tomoni/ui',
     '@tomoni/web-shared',
