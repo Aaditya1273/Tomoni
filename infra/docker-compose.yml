@@ -30,6 +30,17 @@ services:
       timeout: 3s
       retries: 30
 
+  # Local observability (Phase 7): OTLP in on 4318, Grafana on 3300 with the Tomoni dashboard.
+  # `docker compose -f infra/docker-compose.yml --profile observability up -d`, then run the API
+  # and worker with OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318.
+  observability:
+    image: grafana/otel-lgtm:0.11.17
+    profiles: ['observability']
+    ports: ['127.0.0.1:3300:3000', '127.0.0.1:4318:4318']
+    volumes:
+      - ./grafana/tomoni.json:/otel-lgtm/tomoni-dashboard.json:ro
+      - ./grafana/provider.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tomoni.yaml:ro
+
 volumes:
   pgdata:
   redisdata:

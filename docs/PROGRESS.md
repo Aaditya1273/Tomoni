@@ -24,14 +24,30 @@
 - **Phase 6 (Voice Lab and Gene-to-Pill): done** on 2026-11-15. Definition of Done:
   - The `ResearchOnly` boundary is proven by tests: type tests (`@ts-expect-error`), a box that can't be serialized or opened outside `packages/research`, the lint fence on every care and sponsor API module, and RLS that gives the care and sponsor roles no grant on speech samples or outcome labels.
   - A CYP2C19 poor metabolizer on clopidogrel raises a doctor-only warning citing CPIC (`e2e/gene.spec.ts`). Nurses' queues and the family card never show it.
-- **Next: Phase 7 (hardening).**
+- **Phase 7 (Hardening): done** on 2026-11-15. Every §6–8 target, measured:
+
+  | Target | Result | How |
+  | --- | --- | --- |
+  | Nurse flag on the desk < 5 s | 92 ms | `e2e/calls.spec.ts` |
+  | Family card pushed live | Yes: actions, flags and warning changes push over SSE (gene-drug changes send nothing to the family) | `LiveRefresh`, `packages/medicines/test/db.test.ts` |
+  | API read p95 < 300 ms | **125.6 ms**, 6,521 reads, 0 failures (41 users, 60 s, family + desk) | `pnpm --filter @tomoni/seed bench:api` (k6) |
+  | Engine: 10,000 patients < 5 min | about 1 s | `pnpm --filter @tomoni/seed bench` |
+  | Lighthouse ≥ 90, family app | performance **100**, accessibility **100** (median of 3; 88 on the first run before inlining CSS) | `pnpm --filter @tomoni/seed bench:web` |
+  | Idempotent jobs, dead letters | 5 retries with backoff, then `deadLetter` log and `dlq` list/retry | `apps/worker/test/dlq.test.ts` |
+  | §7 UI: tokens, themes, WCAG 2.2 AA, i18n, keyboard desk | axe on every screen in e2e; contrast test on every token pair | e2e + `packages/ui` |
+  | §8 security: RLS per role, field encryption, CSRF/XSS, rate limits, PHI-free logs, injection red team, dependency scanning | Tested | `packages/db`, `apps/api`, `packages/agent`, CI audit + gitleaks |
+  | §8 backups, tested | Encrypted dump, restore into a new DB, row counts and audit chain verified; runs in CI | `infra/scripts/db-backup.sh drill` |
+  | Observability | OpenTelemetry traces and metrics, PHI-stripped; Grafana dashboard | `packages/telemetry`, RUNBOOK |
+
+  RUNBOOK, GO_LIVE_CHECKLIST and the five-minute DEMO script are in `docs/`.
+- **Next:** the GO_LIVE_CHECKLIST, then Phase 4b's remaining slice (family billing, India skills).
 
 ## Test inventory (all passing)
 
 | Suite | Count | What it proves |
 | --- | --- | --- |
 | `packages/db` | 71 | Research (Phase 5): live consent gating and withdrawal, protocol suspension, consent immutability, who may consent (patient or verified representative; never staff), the sponsor role reading no table, suppression and rounding, a differencing attack, own-trial funnel, no randomization fee unit. Earlier: RLS for 9 roles on every table, including medicines, fills, warnings, Blue Button links, calls, nurse flags and actions; the disclosure and verification CHECKs; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
-| `packages/medicines` | 30 | **Gene-to-Pill:** a poor metabolizer on clopidogrel raises a mismatch citing CPIC; no rule or no drug, nothing.  **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
+| `packages/medicines` | 31 | **Live card:** a family-visible warning change emits one `warning.changed` event per household, ids only; a doctor-only one emits none.  **Gene-to-Pill:** a poor metabolizer on clopidogrel raises a mismatch citing CPIC; no rule or no drug, nothing.  **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
 | `apps/api` | 68 | Gene-to-Pill: physician-only PGx entry, gene-drug item in the physician queue only; Voice Lab on a simulated call (sample under the pseudonym, research seconds apart, no words in the transcript).  Research and sponsor API end to end, including a family member who is not a representative being refused. Earlier: Phase 4: desk timeline per practice, draft and sign, APCM build, CSV export with formula-injection neutralized, mark billed, report, unified queue; family activity without caller words, streak with shield, single-use expiring invites. Earlier: Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
 | `packages/ui` | 26 | Every token pair meets WCAG contrast in both themes |
 | `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved |
@@ -43,6 +59,8 @@
 | `packages/care` | 7 | Chronic conditions from ICD-10; G0556/G0557/G0558; months excluded with reasons; only a physician of the practice signs; signed plans immutable; billed months frozen |
 | `packages/research` | 10 | `ResearchOnly` can't be read as its contents, serialized, printed or opened from the package entry; ML contract (mock labelled, bad replies rejected, the Python service's real output parses); samples only with speech-task consent and a live call, once a day, under the pseudonym; care and sponsor roles denied; features and hospital-stay labels by the worker; withdrawal hides everything on the next statement |
 | `apps/ml` | self-check | WAV energy features: duration, voiced ratio, pauses over 250 ms, level (`python3 apps/ml/features.py`, in CI) |
+| `packages/telemetry` | 1 | Query strings stripped from every span attribute before export |
+| `apps/worker` | 1 | A job that fails every attempt is a dead letter; listed, re-queued, then succeeds |
 | `packages/trials` | 3 | Matching against closed criteria; one funnel step at a time; randomization never billable |
 | `apps/web` e2e | 60 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
@@ -68,6 +86,8 @@
 | 2026-11-15 | 4b.1 India bridge | Region per household; family-entered medicines with encrypted photo evidence; engine on family entries; India demo household | API, e2e | Local object store until S3 |
 | 2026-11-15 | 6.1 Gene-to-Pill | PGx results entered by the practice; CPIC level A rules; gene-drug warnings in the physician queue only | Unit, API, e2e | — |
 | 2026-11-15 | 6.2 Voice Lab | `packages/research` (`ResearchOnly<T>`, feature contract, nightly jobs), optional speech task on the call, research seconds apart from care seconds, `apps/ml` feature service | Unit, DB, API | `MockFeatureService` unless `TOMONI_ADAPTER_FEATURES=real` |
+| 2026-11-15 | 7.1 Performance | k6 read-latency and Lighthouse gates against seeded stacks; CSS inlined | k6, Lighthouse | — |
+| 2026-11-15 | 7.2 Operations | Dead letters, encrypted backups with a CI restore drill, OpenTelemetry, RUNBOOK, GO_LIVE_CHECKLIST, DEMO | Unit, drill | — |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests
@@ -84,6 +104,9 @@
 - **Twilio webhook writes never committed.** The handler returned the Fastify reply (a thenable) from inside the transaction. The TwiML is now built inside the transaction and sent after commit.
 
 ## Known gaps
+- **Performance numbers are from one laptop.** Production needs its own k6 run on production-sized data and hardware, and the Lighthouse run covers the family card only (the desk is keyboard-first and not scored).
+- **TLS, encryption at rest and point-in-time recovery** belong to the hosting setup and are on the GO_LIVE_CHECKLIST; locally everything runs over plain http.
+- **Alerting is not wired.** The signals exist (dead letters, unpublished outbox rows, p95) but no alert rules or on-call yet.
 - **No audio is captured for the speech task yet.** The simulator has none, and the Twilio path uses `<Gather>` speech recognition. Samples record duration only, and features come from the labelled mock until a `<Record>` step stores audio in the research bucket. Counsel must also confirm D-009 (research inside a billed care call).
 - **Outcome labels cover hospital stays only.** ED visits and new diagnoses need claim types the mapper doesn't produce yet.
 - **The voice pre-screen** (ethics-approved questions on the daily call) is not built; the doctor can introduce from a match directly. It arrives with Phase 6's call changes.
@@ -102,7 +125,6 @@
 - **Real Blue Button sandbox not exercised end to end.** It needs client credentials from the CMS developer sandbox (`TOMONI_BB_CLIENT_ID` / `SECRET`, `TOMONI_ADAPTER_BLUEBUTTON=real`). The adapter is tested against a fake server.
 - **No full CMS release loaded yet.** The loader reads the real file format, but only the bundled synthetic sample has been loaded. A full release (gigabytes, plus the pharmacy network file, which isn't loaded at all) needs a streaming loader before production.
 - **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.
-- **No live updates yet.** The family card updates on reload. The outbox relay and SSE arrive with Phase 3.
 - **Medicine names** are simplified from RxNorm by a heuristic.
 - **Hindi copy:** the new strings also need native review. The other four Indic locales fall back to English.
 - **Family navigation:** still one page plus evidence. The activity log and family pages come in Phase 4.
@@ -110,4 +132,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 7: k6 load test, Lighthouse, OpenTelemetry, backup and restore drill, RUNBOOK, GO_LIVE_CHECKLIST and the demo script.
+Work the GO_LIVE_CHECKLIST with counsel, the IRB and a clinical reviewer. In code: Phase 4b's family billing and India skills, the speech-task audio step, alert rules.

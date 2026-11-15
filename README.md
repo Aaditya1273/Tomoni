@@ -24,7 +24,9 @@ pnpm dev:all
 | API and OpenAPI docs | http://localhost:4000/docs |
 | Design system (Storybook) | `pnpm --filter @tomoni/ui storybook` → http://localhost:6006 |
 
-Other commands: `pnpm test` (unit and database tests), `pnpm --filter @tomoni/web test:e2e` (Playwright on an isolated stack), `pnpm typecheck`, `pnpm lint`, `pnpm db:reset && pnpm db:seed`, `pnpm --filter @tomoni/seed bench` (warning engine on 10,000 patients), `pnpm infra:down`.
+Other commands: `pnpm test` (unit and database tests), `pnpm --filter @tomoni/web test:e2e` (Playwright on an isolated stack), `pnpm typecheck`, `pnpm lint`, `pnpm db:reset && pnpm db:seed`, `pnpm --filter @tomoni/seed bench` (warning engine on 10,000 patients), `pnpm --filter @tomoni/seed bench:api` (k6 read latency) and `bench:web` (Lighthouse), `infra/scripts/db-backup.sh drill` (backup and restore), `pnpm infra:down`.
+
+Operating it: [RUNBOOK](docs/RUNBOOK.md). Before real patients: [GO_LIVE_CHECKLIST](docs/GO_LIVE_CHECKLIST.md). Showing it: the [five-minute demo](docs/DEMO.md).
 
 `TOMONI_TODAY=2026-11-15` pins "today" for the engine and the synthetic data. Tests and e2e use it, because the scripted households are written against that date.
 
@@ -86,7 +88,9 @@ Details: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_MODEL](docs/DATA_MODEL.md
 | CMS plan, formulary and pricing files | Synthetic sample in the real file format | Loader built; a full CMS release needs a streaming loader (PROGRESS) |
 | PBM change lists | Admin CSV upload with column mapping | Built |
 | Drug shortages, pharmacy closures | Synthetic sample notices | Feeds to be chosen |
-| Fax, PGx lab | None yet | Phases 4–6 |
+| PGx lab results | Entered by the practice on the desk | Lab interface to be chosen |
+| Voice Lab speech features | `MockFeatureService` (labelled `mock-0`) | Built: `apps/ml` (`TOMONI_ADAPTER_FEATURES=real`); audio capture not built yet |
+| Fax | None yet | Not planned before Go-Live |
 
 Real adapters refuse to start unless `TOMONI_REAL_DATA_ENABLED=true`, and that flag stays off until legal sign-off.
 
