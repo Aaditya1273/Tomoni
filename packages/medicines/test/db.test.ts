@@ -253,3 +253,32 @@ describe('PBM change lists', () => {
     expect(removal).toMatchObject({ access_status: 'amber' }); // sitagliptin, next refill Dec 4
   });
 });
+
+describe('live family card (§6)', () => {
+  const events = async () =>
+    (
+      await db.execute<{ n: number }>(
+        sql`SELECT count(*)::int AS n FROM care.outbox WHERE topic = 'warning.changed' AND aggregate_id = ${rajId}`,
+      )
+    ).rows[0]!.n;
+
+  it('a family-visible change emits one event for the household; a doctor-only one emits none', async () => {
+    const before = await events();
+    expect(before).toBeGreaterThan(0); // the runs above created and resolved Raj's warnings
+    await worker((w) => runEngine(w, { today: TODAY }));
+    expect(await events()).toBe(before); // nothing changed, nothing sent
+    const [e] = (
+      await db.execute<{ household_id: string; payload: unknown }>(
+        sql`SELECT household_id, payload FROM care.outbox WHERE topic = 'warning.changed' AND aggregate_id = ${rajId} LIMIT 1`,
+      )
+    ).rows;
+    expect(e).toMatchObject({ payload: {} });
+    expect(e!.household_id).toBeTruthy();
+
+    await db.execute(sql`INSERT INTO care.pgx_result (patient_id, gene, diplotype, phenotype, lab, reported_at, source_ref)
+      VALUES (${rajId}, 'CYP2C19', '*2/*2', 'Poor Metabolizer', 'Demo Lab', ${TODAY}, 'live-test')`);
+    expect(await worker((w) => runEngine(w, { today: TODAY }))).toMatchObject({ created: 1 });
+    expect((await open()).map((x) => x.type)).toContain('gene_drug_mismatch');
+    expect(await events()).toBe(before);
+  });
+});

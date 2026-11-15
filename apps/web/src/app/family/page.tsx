@@ -44,7 +44,9 @@ export default async function FamilyToday({
 
   return (
     <main id="main" className="flex flex-1 flex-col gap-8 pt-10">
-      <LiveRefresh topics={['action.proposed', 'action.succeeded', 'action.handoff', 'flag.created']} />
+      <LiveRefresh
+        topics={['action.proposed', 'action.succeeded', 'action.handoff', 'flag.created', 'warning.changed']}
+      />
       <div className="flex flex-col gap-2">
         <Greeting name={first} />
         {patients.length > 0 && (

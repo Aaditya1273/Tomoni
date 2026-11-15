@@ -135,9 +135,10 @@ export async function saveWarnings(
   patientIds?: string[],
 ): Promise<Omit<RunResult, 'patients'>> {
   let created = 0;
+  const changed = new Set<string>();
   for (let i = 0; i < drafts.length; i += 500) {
     const chunk = drafts.slice(i, i + 500);
-    const r = await rowsOf<{ n: number }>(
+    const r = await rowsOf<{ patient_id: string; doctor_only: boolean; n: number }>(
       db,
       sql`WITH x AS (
             SELECT * FROM jsonb_to_recordset(${JSON.stringify(chunk)}::jsonb) AS x(
@@ -152,27 +153,38 @@ export async function saveWarnings(
             ON CONFLICT (dedupe_key) WHERE status = 'open' DO UPDATE
                SET problem_date = EXCLUDED.problem_date, days_until_problem = EXCLUDED.days_until_problem,
                    access_status = EXCLUDED.access_status, evidence = EXCLUDED.evidence
-            RETURNING id, patient_id, type, (xmax = 0) AS inserted
+            RETURNING id, patient_id, type, (xmax = 0) AS inserted, type = 'gene_drug_mismatch' AS doctor_only
           )
-          SELECT count(audit.append('create', 'warning', id::text, patient_id, 'treatment',
+          SELECT patient_id, doctor_only, count(audit.append('create', 'warning', id::text, patient_id, 'treatment',
                                     jsonb_build_object('type', type)))::int AS n
-            FROM up WHERE inserted`,
+            FROM up WHERE inserted GROUP BY patient_id, doctor_only`,
     );
-    created += r[0]?.n ?? 0;
+    for (const x of r) {
+      created += x.n;
+      if (!x.doctor_only) changed.add(x.patient_id);
+    }
   }
   const keys = drafts.map((d) => d.dedupeKey);
-  const [res] = await rowsOf<{ n: number }>(
+  const gone = await rowsOf<{ patient_id: string; doctor_only: boolean; n: number }>(
     db,
     sql`WITH gone AS (
           UPDATE care.warning SET status = 'resolved', resolved_at = now(), outcome = 'unknown'
            WHERE status = 'open' AND source_kind IN ('fill', 'data_file', 'pgx')
              AND NOT (dedupe_key = ANY(${sql.param(keys)}::text[]))
              ${patientIds ? sql`AND patient_id = ANY(${sql.param(patientIds)}::uuid[])` : sql``}
-          RETURNING id, patient_id, type)
-        SELECT count(audit.append('update', 'warning', id::text, patient_id, 'treatment',
-                                  jsonb_build_object('type', type, 'status', 'resolved')))::int AS n FROM gone`,
+          RETURNING id, patient_id, type, type = 'gene_drug_mismatch' AS doctor_only)
+        SELECT patient_id, doctor_only, count(audit.append('update', 'warning', id::text, patient_id, 'treatment',
+                                  jsonb_build_object('type', type, 'status', 'resolved')))::int AS n
+          FROM gone GROUP BY patient_id, doctor_only`,
   );
-  return { open: drafts.length, created, resolved: res?.n ?? 0 };
+  for (const x of gone) if (!x.doctor_only) changed.add(x.patient_id);
+  // §6: the family card refreshes live. One event per patient whose family-visible warnings
+  // changed; ids only. Doctor-only (gene-drug) changes send none, so nothing hints at them.
+  if (changed.size)
+    await db.execute(sql`INSERT INTO care.outbox (topic, aggregate_type, aggregate_id, practice_id, household_id)
+      SELECT 'warning.changed', 'patient', id, practice_id, household_id FROM care.patient
+       WHERE id = ANY(${sql.param([...changed])}::uuid[])`);
+  return { open: drafts.length, created, resolved: gone.reduce((a, x) => a + x.n, 0) };
 }
 
 export async function runEngine(db: Db, o: { today: string; patientIds?: string[] }): Promise<RunResult> {
