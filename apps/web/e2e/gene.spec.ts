@@ -5,7 +5,11 @@ import { expectAccessible, passMfa, signIn, snap } from './helpers';
  * Phase 6 Definition of Done (Gene-to-Pill): Raj, a CYP2C19 poor metabolizer on clopidogrel,
  * raises a gene-drug warning for the doctor only. The family never sees it.
  */
-test('a CYP2C19 poor metabolizer on clopidogrel: a doctor-only warning, citing CPIC', async ({ page, browser, isMobile }, info) => {
+test('a CYP2C19 poor metabolizer on clopidogrel: a doctor-only warning, citing CPIC', async ({
+  page,
+  browser,
+  isMobile,
+}, info) => {
   test.skip(isMobile, 'desk workflow, run once on desktop');
   await signIn(page, 'dr.rao@demo.tomoni.test');
   await passMfa(page, 'dr.rao@demo.tomoni.test');

@@ -31,6 +31,8 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-025 | Calls in Gujarati, Tamil, Punjabi and Bengali speak English until native scripts exist | NEEDS-FOUNDER-REVIEW |
 | D-026 | Agent code in `packages/agent`, safety matcher in `packages/core` | Accepted |
 | D-027 | Second market: the India bridge, family-paid, research opening after 13 May 2027 | NEEDS-FOUNDER-REVIEW |
+| D-028 | Gene-drug warnings go to physicians only | NEEDS-FOUNDER-REVIEW |
+| D-029 | The speech task's words never enter the care record | Accepted |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -153,3 +155,9 @@ What it changes in the product:
 - The India research cohort waits for the DPDP Rules research exemption (13 May 2027), an Indian ethics committee, and counsel on India's clinical-trial rules.
 
 Counsel must confirm two things before any India patient is called: cross-border processing under the DPDP Act, and the telecom rules for automated calls.
+
+## D-028: Gene-drug warnings go to physicians only (NEEDS-FOUNDER-REVIEW)
+A pharmacogenomic result is clinical data the practice entered, so it lives in `care`, not `research`. The warning tells the doctor that a prescription conflicts with a CPIC level A guideline and links to the guideline; the recommendation text is not copied. Nurses don't see it in the queue, and the family card, calls and evidence route never show it: a genetic finding should reach the family through their doctor. Only a few CPIC level A pairs are seeded (CYP2C19/clopidogrel, SLCO1B1/simvastatin). A clinical pharmacist must review the rule table before any real patient.
+
+## D-029: The speech task's words never enter the care record
+The research speech task runs at the end of a clean daily call, and only with active speech-task consent. The safety matcher still runs first, so an emergency said during the task is handled as care. Otherwise the words go nowhere: the LLM never reads them, the care transcript stores `[research speech task]` instead, and the research sample keeps duration and features under the pseudonym. The care API records a sample only through `research.record_speech_sample()`, which needs a live call and checks consent itself, so it never touches the pseudonym table. Features from the mock are labelled `mock-0` and can't be mistaken for real ones.

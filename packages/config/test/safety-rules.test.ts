@@ -35,9 +35,7 @@ describe('rule 2.8: research-only code is fenced off', () => {
   });
 
   it('allows it in research API routes', async () => {
-    expect(await lint(bad, 'apps/api/src/research/routes.ts')).not.toContain(
-      'no-restricted-imports',
-    );
+    expect(await lint(bad, 'apps/api/src/research/routes.ts')).not.toContain('no-restricted-imports');
   });
 });
 
