@@ -64,14 +64,33 @@ export async function startRelay(redis: Redis, queue: Queue): Promise<() => Prom
     }
   };
 
-  const listener = await pool('worker').connect();
-  listener.on('notification', () => void flush().catch((e) => console.error('relay', (e as Error).message)));
-  await listener.query('LISTEN tomoni_outbox');
+  // LISTEN on a dedicated connection that comes back by itself: the database may not exist yet
+  // (CI creates it after the stack starts) or may restart under us.
+  let listener: { query(q: string): Promise<unknown>; release(destroy?: boolean): void } | null = null;
+  let stopped = false;
+  const listen = async (): Promise<void> => {
+    try {
+      const c = await pool('worker').connect();
+      c.on('notification', () => void flush().catch((e) => console.error('relay', (e as Error).message)));
+      c.on('error', () => {
+        c.release(true);
+        listener = null;
+        if (!stopped) setTimeout(() => void listen(), 2000);
+      });
+      await c.query('LISTEN tomoni_outbox');
+      listener = c;
+      await flush();
+    } catch (e) {
+      console.error('relay: waiting for the database:', (e as Error).message.slice(0, 120));
+      if (!stopped) setTimeout(() => void listen(), 2000);
+    }
+  };
+  await listen();
   const sweep = setInterval(() => void flush().catch(() => {}), 5000);
-  await flush();
   return async () => {
+    stopped = true;
     clearInterval(sweep);
-    await listener.query('UNLISTEN tomoni_outbox').catch(() => {});
-    listener.release();
+    await listener?.query('UNLISTEN tomoni_outbox').catch(() => {});
+    listener?.release();
   };
 }
