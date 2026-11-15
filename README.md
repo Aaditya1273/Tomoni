@@ -2,7 +2,7 @@
 
 **The care team between doctor visits, and a living research cohort for drug development.** Grandpa gets a short daily call in his language, his family gets one app, and his doctor gets a between-visit care program that Medicare pays for. With separate consent, the same calls build a research cohort that drug developers pay to use.
 
-The product and business plan: [`docs/PRODUCT.md`](docs/PRODUCT.md). The build spec: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
+The product and business plan: [`docs/PRODUCT.md`](docs/PRODUCT.md). How it gets big: [`docs/STRATEGY.md`](docs/STRATEGY.md). The build spec: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
 
 > **Status: Phases 1–3 complete** (foundation, medicines core, voice and agent). Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 

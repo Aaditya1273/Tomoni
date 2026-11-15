@@ -30,6 +30,7 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-024 | Daily-call scheduler is opt-in per environment | Accepted |
 | D-025 | Calls in Gujarati, Tamil, Punjabi and Bengali speak English until native scripts exist | NEEDS-FOUNDER-REVIEW |
 | D-026 | Agent code in `packages/agent`, safety matcher in `packages/core` | Accepted |
+| D-027 | Second market: the India bridge, family-paid, research opening after 13 May 2027 | NEEDS-FOUNDER-REVIEW |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -141,3 +142,14 @@ The call script is complete in English and Hindi. The other four locales fall ba
 
 ## D-026: Agent code in `packages/agent`; the safety matcher in `packages/core`
 ARCHITECTURE put the policy engine and skill registry in `packages/core`, which has no I/O. Skills call adapters, and the runner needs the database, so they live together in `packages/agent`. `packages/core` keeps the parts that must never be wrong and need no I/O: the safety matcher and scope building. The registry's policy rules (who approves what) are still pure data, with their own tests.
+
+## D-027: Second market: the India bridge (NEEDS-FOUNDER-REVIEW)
+The full reasoning is in STRATEGY.md. In short, Indian families abroad pay for daily calls to parents in India. That gives revenue from month one, Indian-language voice data at scale, and a second recruitment pool for the same sponsors.
+
+What it changes in the product:
+- A household has a region.
+- In India, medicines come from family entry with a prescription photo as evidence, not from Blue Button.
+- There is no APCM and no Medicare. The plan-check and APCM features are US-only.
+- The India research cohort waits for the DPDP Rules research exemption (13 May 2027), an Indian ethics committee, and counsel on India's clinical-trial rules.
+
+Counsel must confirm two things before any India patient is called: cross-border processing under the DPDP Act, and the telecom rules for automated calls.

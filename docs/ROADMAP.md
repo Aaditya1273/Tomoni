@@ -32,8 +32,12 @@ Slices: contact consent and call scheduler (time zones, quiet hours) · safety m
 Slices: keyboard-first queue with evidence panes and bulk sign · care-plan drafts and signing · APCM month records and evidence export · practice report · family activity log, streaks and invites.
 **Done when:** the "one week in Tomoni" scenario runs end to end in Playwright.
 
+## Phase 4b: India bridge (added by STRATEGY.md)
+Slices: a region per household (US or IN) · medicines without Blue Button (family-entered, with a photo of the prescription kept as evidence) · refill reminders and run-out warnings from those entries · family subscription billing (adapter + mock) · India call windows and numbers.
+**Done when:** a family abroad can sign up a parent in India, enter their medicines, and see a sourced run-out warning and a daily call in Hindi or Gujarati, end to end in Playwright.
+
 ## Phase 5: Research core
-Slices: protocols and research eConsent (per locale, representatives) · pseudonyms and gating · Trial Bridge (criteria editor, matcher, pre-screen script, doctor intro card, referral tracker) · sponsor portal (feasibility, funnel, usage) with disclosure control.
+Slices: protocols and research eConsent (per locale, representatives) · pseudonyms and gating · Trial Bridge (criteria editor, matcher, **trial-ready passport**, pre-screen script, doctor intro card, referral tracker) · sponsor portal (feasibility, funnel, usage) with disclosure control.
 **Done when:** the consent-gating, small-cell suppression and no-finder's-fee tests pass, and the referral funnel works end to end.
 
 ## Phase 6: Voice Lab and Gene-to-Pill
