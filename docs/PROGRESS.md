@@ -16,15 +16,20 @@
   - The care plan is signed and the month is billable.
   - Asha reads the week.
 - **Phase 4b (India bridge): first slice done.** A family abroad sees sourced warnings for a parent in India and adds medicines from the bill with a photo, end to end in Playwright (`e2e/india.spec.ts`). Still to come: family subscription billing, India-specific skills (reminders to see the local doctor), and the legal checks in D-027 before any India call.
-- **Next: Phase 5 (Research core).**
+- **Phase 5 (Research core): done** on 2026-11-15. Definition of Done:
+  - Consent gating passes: no research data without active consent, and withdrawal hides it on the next statement.
+  - Small-cell suppression passes: under 11 hidden, everything rounded to 5, secondary suppression, and a differencing attack fails.
+  - No finder's fees passes: no column pays a clinician, and no fee unit exists for randomization.
+  - The referral funnel works end to end (`e2e/research.spec.ts`).
+- **Next: Phase 6 (Voice Lab and Gene-to-Pill).**
 
 ## Test inventory (all passing)
 
 | Suite | Count | What it proves |
 | --- | --- | --- |
-| `packages/db` | 59 | RLS for 9 roles on every table, including medicines, fills, warnings, Blue Button links, calls, nurse flags and actions; the disclosure and verification CHECKs; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
+| `packages/db` | 71 | Research (Phase 5): live consent gating and withdrawal, protocol suspension, consent immutability, who may consent (patient or verified representative; never staff), the sponsor role reading no table, suppression and rounding, a differencing attack, own-trial funnel, no randomization fee unit. Earlier: RLS for 9 roles on every table, including medicines, fills, warnings, Blue Button links, calls, nurse flags and actions; the disclosure and verification CHECKs; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
 | `packages/medicines` | 28 | **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
-| `apps/api` | 59 | Phase 4: desk timeline per practice, draft and sign, APCM build, CSV export with formula-injection neutralized, mark billed, report, unified queue; family activity without caller words, streak with shield, single-use expiring invites. Earlier: Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
+| `apps/api` | 66 | Research and sponsor API end to end, including a family member who is not a representative being refused. Earlier: Phase 4: desk timeline per practice, draft and sign, APCM build, CSV export with formula-injection neutralized, mark billed, report, unified queue; family activity without caller words, streak with shield, single-use expiring invites. Earlier: Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
 | `packages/ui` | 26 | Every token pair meets WCAG contrast in both themes |
 | `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved |
 | `packages/core` | 8 | Scope building; MFA and session policy per role |
@@ -33,7 +38,8 @@
 | `packages/voice` | 17 (+9 live eval, opt-in) | Disclosure first; normal call slots; one re-ask; emergency and self-harm end the call; a symptom skips every admin step; the LLM never sees text the matcher fired on; the LLM can add a flag, never remove one; scheduler time zones, DST, quiet hours; Twilio signature against Twilio's documented example |
 | `packages/agent` | 13 | Closed registry; approval classes; no path skips approval or verification; strict inputs; the database rejects approvals from the wrong role or practice; confirm → do → verify recorded step by step; backoff then ops handoff; hostile pharmacy text stays untrusted data; plan ranking unaffected by any commission |
 | `packages/care` | 7 | Chronic conditions from ICD-10; G0556/G0557/G0558; months excluded with reasons; only a physician of the practice signs; signed plans immutable; billed months frozen |
-| `apps/web` e2e | 57 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
+| `packages/trials` | 3 | Matching against closed criteria; one funnel step at a time; randomization never billable |
+| `apps/web` e2e | 60 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
 ## Log
 
@@ -52,6 +58,8 @@
 | 2026-11-15 | 4.1 APCM | Care plans (physician-only signing, immutable), APCM month records with evidence, CSV export, practice report | Unit, DB, API, e2e | — |
 | 2026-11-15 | 4.2 Desk queue | Keyboard-first queue (j/k/s/x/Shift+S) with evidence pane | API, e2e | — |
 | 2026-11-15 | 4.3–4.4 Family | Activity log, streaks, invites; one-week scenario | API, e2e | — |
+| 2026-11-15 | 5.1 Research core | Consent, pseudonyms, Trial Bridge schema, sponsor aggregate functions | 12 DB | — |
+| 2026-11-15 | 5.2–5.3 Trial Bridge | Matching, registry consent page, doctor introductions, coordinator funnel, sponsor portal | Unit, API, e2e | — |
 | 2026-11-15 | 4b.1 India bridge | Region per household; family-entered medicines with encrypted photo evidence; engine on family entries; India demo household | API, e2e | Local object store until S3 |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
@@ -69,6 +77,10 @@
 - **Twilio webhook writes never committed.** The handler returned the Fastify reply (a thenable) from inside the transaction. The TwiML is now built inside the transaction and sent after commit.
 
 ## Known gaps
+- **The voice pre-screen** (ethics-approved questions on the daily call) is not built; the doctor can introduce from a match directly. It arrives with Phase 6's call changes.
+- **The research protocol summary** is complete in English and Hindi only, and is a demo text; a real one comes from the IRB-approved consent document.
+- **Sponsor usage shows exact unit counts** because it is an invoice. It names no one, but together with a small funnel it can reveal that one person progressed. Counsel should confirm (add to D-010 review).
+- **There is no research coordinator role yet;** admin stands in.
 - **Times on family pages show in UTC.** Calendar dates are right; time-of-day needs the viewer's time zone.
 - **Care-plan goals are templates** for common conditions; the physician edits by drafting a new version (no inline editor yet).
 - **APCM rates in the report are national**; local adjustments (GPCI) are not applied.
@@ -89,4 +101,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 5, slice 5.1: research protocols and eConsent (per locale, representatives), pseudonyms, and RLS gating on `research.*`.
+Phase 6, slice 6.1: the research speech task on the call (only with active speech-task consent), `ResearchOnly<T>`, and the ML feature service contract.
