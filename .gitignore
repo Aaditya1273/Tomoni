@@ -34,3 +34,4 @@ __pycache__/
 **/e2e/.state/
 **/e2e/__screens__/
 next-env.d.ts
+backups/

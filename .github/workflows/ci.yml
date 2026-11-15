@@ -57,6 +57,8 @@ jobs:
         run: |
           pnpm --filter @tomoni/web exec playwright install --with-deps chromium
           pnpm --filter @tomoni/web test:e2e
+      - name: Backup and restore drill (encrypted dump, row counts, audit chain)
+        run: PGTOOLS="docker run --rm -i --network host postgres:18.3" TOMONI_BACKUP_KEY=ci-drill-key-not-a-secret-0123456789 infra/scripts/db-backup.sh drill tomoni_e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:
