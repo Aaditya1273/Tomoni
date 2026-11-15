@@ -54,3 +54,20 @@ export async function reset(): Promise<void> {
     DROP SCHEMA IF EXISTS app, auth, care, research, audit, sponsor CASCADE;
     DROP TABLE IF EXISTS public.schema_migrations;`);
 }
+
+/** Create a database (owned by the migration owner) if it does not exist. Test/dev helper. */
+export async function ensureDatabase(name: string): Promise<void> {
+  if (!/^[a-z0-9_]+$/.test(name)) throw new Error('bad database name');
+  const { default: pg } = await import('pg');
+  const { env } = await import('./env');
+  const u = new URL(env().DATABASE_OWNER_URL);
+  u.pathname = '/postgres';
+  const c = new pg.Client({ connectionString: u.toString() });
+  await c.connect();
+  try {
+    const { rowCount } = await c.query('SELECT 1 FROM pg_database WHERE datname = $1', [name]);
+    if (!rowCount) await c.query(`CREATE DATABASE ${name}`);
+  } finally {
+    await c.end();
+  }
+}

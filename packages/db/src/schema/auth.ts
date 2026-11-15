@@ -1,4 +1,4 @@
-import { integer, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, integer, pgSchema, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import type { Role } from '@tomoni/core';
 import { bytea, encrypted } from '../fields';
 
@@ -13,6 +13,7 @@ export const userAccount = auth.table('user_account', {
   mfaEnabledAt: timestamp('mfa_enabled_at', { withTimezone: true }),
   status: text().$type<'active' | 'locked' | 'disabled'>().notNull().default('active'),
   failedLogins: integer('failed_logins').notNull().default(0),
+  mfaLastStep: bigint('mfa_last_step', { mode: 'number' }),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
