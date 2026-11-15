@@ -1,3 +1,4 @@
+import { setRoute } from '@tomoni/telemetry';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
@@ -102,6 +103,8 @@ export async function buildServer(opts: BuildOptions = {}) {
     },
   });
   // Account-spraying guard: all login attempts from one IP, across accounts.
+  // Traces and the duration metric group by route template, never by raw path (no ids, PHI).
+  app.addHook('onRequest', async (req) => setRoute(req.method, req.routeOptions.url));
   app.addHook('onRequest', async (req, reply) => {
     if (req.method !== 'POST' || req.url !== '/api/auth/login') return;
     const key = `tomoni-rl:login-ip:${req.ip}`;

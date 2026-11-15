@@ -21,6 +21,7 @@
     "@tomoni/core": "workspace:*",
     "@tomoni/db": "workspace:*",
     "@tomoni/medicines": "workspace:*",
+    "@tomoni/telemetry": "workspace:*",
     "@tomoni/trials": "workspace:*",
     "@tomoni/voice": "workspace:*",
     "bullmq": "^6.7.6",

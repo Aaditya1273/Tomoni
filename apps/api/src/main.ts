@@ -1,3 +1,4 @@
+import '@tomoni/telemetry/start'; // first: patches http and pg before they load
 import { closePools } from '@tomoni/db';
 import { buildServer } from './server';
 import { loadConfig } from './config';

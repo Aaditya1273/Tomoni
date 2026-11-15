@@ -2,6 +2,7 @@
  * Background jobs (BUILD_PROMPT §3): audit sealing, Blue Button sync, the warning engine.
  * Runs on the tomoni_worker DB role. Logs carry job names, ids and counts only, never PHI.
  */
+import '@tomoni/telemetry/start'; // first: patches http, pg and ioredis before they load
 import { createServer } from 'node:http';
 import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';

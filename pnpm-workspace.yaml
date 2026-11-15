@@ -9,3 +9,4 @@ allowBuilds:
   '@parcel/watcher': false
   '@swc/core': false
   msgpackr-extract: false
+  protobufjs: false
