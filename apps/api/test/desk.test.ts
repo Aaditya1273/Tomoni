@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { closePools, ownerDb, schema } from '@tomoni/db';
+import { closePools, ownerDb, schema, withScope } from '@tomoni/db';
+import { systemScope } from '@tomoni/core';
+import { runEngine } from '@tomoni/medicines';
 import { buildServer } from '../src/server';
 import { Client, makePracticeAndHousehold, makeUser, ORIGIN, totp } from './helpers';
 
@@ -131,6 +133,19 @@ describe('desk: patient, care plan, APCM', () => {
     expect(q[0]).toMatchObject({ flagClass: 'emergency', excerpt: 'chest pain', urgency: 1 });
     const other = await staff('physician', (await makePracticeAndHousehold()).practiceId);
     expect((await other.req('GET', '/api/desk/queue')).json()).toEqual([]);
+  });
+
+  it('Gene-to-Pill: a PGx result makes a doctor-only queue item; nurses and families never see it', async () => {
+    const db = ownerDb();
+    const [m] = await db.insert(schema.medication).values({ patientId, rxcui: '309362', displayName: 'clopidogrel 75 MG Oral Tablet', source: 'claims' }).returning();
+    await db.insert(schema.fill).values({ patientId, medicationId: m!.id, ndc: '99000000701', rxcui: '309362', fillDate: '2026-11-01', daysSupply: 30, quantity: '30', source: 'manual', sourceRef: `pgx-${patientId}` });
+    const r = await doctor.req('POST', `/api/desk/patients/${patientId}/pgx`, { gene: 'CYP2C19', diplotype: '*2/*2', phenotype: 'Poor Metabolizer', lab: 'Demo Lab', reportedAt: '2026-11-10' });
+    expect(r.statusCode, r.body).toBe(200);
+    expect((await nurse.req('POST', `/api/desk/patients/${patientId}/pgx`, { gene: 'CYP2C19', diplotype: '*1/*1', phenotype: 'Normal Metabolizer', lab: 'Demo Lab', reportedAt: '2026-11-10' })).statusCode).toBe(403);
+    await withScope('worker', systemScope('t'), (w) => runEngine(w, { today: '2026-11-15', patientIds: [patientId] }));
+    const q = (await doctor.req('GET', '/api/desk/queue')).json();
+    expect(q.find((i: { kind: string }) => i.kind === 'gene_drug')).toMatchObject({ gene: 'CYP2C19', phenotype: 'Poor Metabolizer', drug: 'clopidogrel 75 MG Oral Tablet' });
+    expect((await nurse.req('GET', '/api/desk/queue')).json().some((i: { kind: string }) => i.kind === 'gene_drug')).toBe(false);
   });
 
   it('rejects malformed months', async () => {

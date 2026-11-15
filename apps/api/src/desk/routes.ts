@@ -5,6 +5,7 @@
  */
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { and, eq, sql } from 'drizzle-orm';
+import type { Queue } from 'bullmq';
 import { z } from 'zod';
 import {
   ApcmList,
@@ -13,6 +14,7 @@ import {
   DeskQueue,
   ErrorBody,
   Month,
+  PgxResultBody,
   PracticeReport,
 } from '@tomoni/contracts';
 import {
@@ -42,29 +44,31 @@ const planItem = (p: typeof schema.carePlan.$inferSelect) => ({
   signedAt: p.signedAt?.toISOString() ?? null,
 });
 
-export const deskRoutes: FastifyPluginAsyncZod = async (app) => {
-  /** Flags, physician approvals and unsigned care plans for the caller's practices, in one list. */
-  app.get(
-    '/api/desk/queue',
-    { preHandler: STAFF, schema: { tags: ['desk'], response: { 200: DeskQueue } } },
-    async (req) => {
-      const s = req.auth!.scope;
-      return withScope('app', s, async (db) => {
-        const ids = sql.param(s.staffPracticeIds);
-        const { rows } = await db.execute<{
-          kind: 'flag' | 'approval' | 'care_plan';
-          id: string;
-          patient_id: string;
-          urgency: number;
-          created_at: string;
-          flag_class: string | null;
-          flag_status: string | null;
-          channel: string | null;
-          skill: string | null;
-          drug: string | null;
-          warning_id: string | null;
-          version: number | null;
-        }>(sql`
+export const deskRoutes =
+  (deps: { queue: Queue }): FastifyPluginAsyncZod =>
+  async (app) => {
+    /** Flags, physician approvals and unsigned care plans for the caller's practices, in one list. */
+    app.get(
+      '/api/desk/queue',
+      { preHandler: STAFF, schema: { tags: ['desk'], response: { 200: DeskQueue } } },
+      async (req) => {
+        const s = req.auth!.scope;
+        return withScope('app', s, async (db) => {
+          const ids = sql.param(s.staffPracticeIds);
+          const { rows } = await db.execute<{
+            kind: 'flag' | 'approval' | 'care_plan' | 'gene_drug';
+            id: string;
+            patient_id: string;
+            urgency: number;
+            created_at: string;
+            flag_class: string | null;
+            flag_status: string | null;
+            channel: string | null;
+            skill: string | null;
+            drug: string | null;
+            warning_id: string | null;
+            version: number | null;
+          }>(sql`
           WITH pts AS (SELECT id FROM care.patient WHERE practice_id = ANY(${ids}::uuid[]))
           SELECT 'flag' AS kind, f.id, f.patient_id, f.urgency, f.created_at::text, f.class AS flag_class,
                  f.status AS flag_status, f.channel, NULL AS skill, NULL AS drug, NULL::uuid AS warning_id, NULL::int AS version
@@ -78,80 +82,137 @@ export const deskRoutes: FastifyPluginAsyncZod = async (app) => {
           UNION ALL
           SELECT 'care_plan', cp.id, cp.patient_id, 4, cp.created_at::text, NULL, NULL, NULL, NULL, NULL, NULL, cp.version
             FROM care.care_plan cp WHERE cp.status = 'draft' AND cp.patient_id IN (SELECT id FROM pts)
+          UNION ALL
+          -- Gene-drug mismatches go to physicians only (Gene-to-Pill).
+          SELECT 'gene_drug', w.id, w.patient_id, 2, w.created_at::text, w.evidence->>'gene', w.evidence->>'phenotype',
+                 w.evidence->>'guideline', NULL, w.evidence->>'drug', NULL, NULL
+            FROM care.warning w WHERE w.type = 'gene_drug_mismatch' AND w.status = 'open'
+             AND ${s.staffRoles.includes('physician')} AND w.patient_id IN (SELECT id FROM pts)
           ORDER BY 4, 5 LIMIT 300`);
-        const people = rows.length
-          ? await db
-              .select({ id: schema.patient.id, name: schema.patient.name })
-              .from(schema.patient)
-              .where(sql`id = ANY(${sql.param([...new Set(rows.map((r) => r.patient_id))])}::uuid[])`)
-          : [];
-        const nameOf = new Map(people.map((p) => [p.id, p.name]));
-        // Flag excerpts are PHI: decrypt through Drizzle and audit each one shown.
-        const flagIds = rows.filter((r) => r.kind === 'flag').map((r) => r.id);
-        const excerpts = flagIds.length
-          ? new Map(
-              (
-                await db
-                  .select({
-                    id: schema.nurseFlag.id,
-                    excerpt: schema.nurseFlag.excerpt,
-                    patientId: schema.nurseFlag.patientId,
-                  })
-                  .from(schema.nurseFlag)
-                  .where(sql`id = ANY(${sql.param(flagIds)}::uuid[])`)
-              ).map((f) => [f.id, f.excerpt]),
-            )
-          : new Map<string, string>();
-        for (const r of rows.filter((x) => x.kind === 'flag'))
-          await audit(db, {
-            action: 'read',
-            entityType: 'nurse_flag',
-            entityId: r.id,
+          const people = rows.length
+            ? await db
+                .select({ id: schema.patient.id, name: schema.patient.name })
+                .from(schema.patient)
+                .where(sql`id = ANY(${sql.param([...new Set(rows.map((r) => r.patient_id))])}::uuid[])`)
+            : [];
+          const nameOf = new Map(people.map((p) => [p.id, p.name]));
+          // Flag excerpts are PHI: decrypt through Drizzle and audit each one shown.
+          const flagIds = rows.filter((r) => r.kind === 'flag').map((r) => r.id);
+          const excerpts = flagIds.length
+            ? new Map(
+                (
+                  await db
+                    .select({
+                      id: schema.nurseFlag.id,
+                      excerpt: schema.nurseFlag.excerpt,
+                      patientId: schema.nurseFlag.patientId,
+                    })
+                    .from(schema.nurseFlag)
+                    .where(sql`id = ANY(${sql.param(flagIds)}::uuid[])`)
+                ).map((f) => [f.id, f.excerpt]),
+              )
+            : new Map<string, string>();
+          for (const r of rows.filter((x) => x.kind === 'flag'))
+            await audit(db, {
+              action: 'read',
+              entityType: 'nurse_flag',
+              entityId: r.id,
+              patientId: r.patient_id,
+              purpose: 'treatment',
+            });
+          return rows.map((r) => ({
+            kind: r.kind,
+            id: r.id,
             patientId: r.patient_id,
-            purpose: 'treatment',
-          });
-        return rows.map((r) => ({
-          kind: r.kind,
-          id: r.id,
-          patientId: r.patient_id,
-          patientName: nameOf.get(r.patient_id) ?? '',
-          urgency: r.urgency,
-          createdAt: new Date(r.created_at).toISOString(),
-          ...(r.kind === 'flag'
-            ? {
-                flagClass: r.flag_class as never,
-                flagStatus: r.flag_status as never,
-                channel: r.channel ?? '',
-                excerpt: excerpts.get(r.id) ?? '',
-              }
-            : {}),
-          ...(r.kind === 'approval' ? { skill: r.skill ?? '', drug: r.drug, warningId: r.warning_id } : {}),
-          ...(r.kind === 'care_plan' ? { version: r.version ?? 1 } : {}),
-        }));
-      });
-    },
-  );
+            patientName: nameOf.get(r.patient_id) ?? '',
+            urgency: r.urgency,
+            createdAt: new Date(r.created_at).toISOString(),
+            ...(r.kind === 'flag'
+              ? {
+                  flagClass: r.flag_class as never,
+                  flagStatus: r.flag_status as never,
+                  channel: r.channel ?? '',
+                  excerpt: excerpts.get(r.id) ?? '',
+                }
+              : {}),
+            ...(r.kind === 'approval' ? { skill: r.skill ?? '', drug: r.drug, warningId: r.warning_id } : {}),
+            ...(r.kind === 'care_plan' ? { version: r.version ?? 1 } : {}),
+            // The union reuses columns: for gene_drug, flag_class = gene, flag_status = phenotype, channel = guideline.
+            ...(r.kind === 'gene_drug'
+              ? {
+                  gene: r.flag_class ?? '',
+                  phenotype: r.flag_status ?? '',
+                  guideline: r.channel ?? '',
+                  drug: r.drug,
+                }
+              : {}),
+          }));
+        });
+      },
+    );
 
-  app.get(
-    '/api/desk/patients/:id',
-    {
-      preHandler: STAFF,
-      schema: { tags: ['desk'], params: Id, response: { 200: DeskPatient, 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      const s = req.auth!.scope;
-      const out = await withScope('app', s, async (db) => {
-        const [p] = await db
-          .select()
-          .from(schema.patient)
-          .where(
-            and(
-              eq(schema.patient.id, req.params.id),
-              sql`practice_id = ANY(${sql.param(s.staffPracticeIds)}::uuid[])`,
-            ),
-          );
-        if (!p) return null;
-        const { rows: timeline } = await db.execute<z.infer<typeof DeskPatient>['timeline'][number]>(sql`
+    app.post(
+      '/api/desk/patients/:id/pgx',
+      {
+        preHandler: PHYSICIAN,
+        schema: {
+          tags: ['desk'],
+          params: Id,
+          body: PgxResultBody,
+          response: { 200: z.object({ id: z.uuid() }), 404: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        const a = req.auth!;
+        const id = await withScope('app', a.scope, async (db) => {
+          const [clin] = await db
+            .select({ id: schema.clinician.id })
+            .from(schema.clinician)
+            .where(eq(schema.clinician.userId, a.userId));
+          const { rows } = await db.execute<{ id: string }>(sql`
+          INSERT INTO care.pgx_result (patient_id, gene, diplotype, phenotype, lab, reported_at, ordered_by_clinician_id, source_ref)
+          SELECT ${req.params.id}, ${req.body.gene}, ${req.body.diplotype}, ${req.body.phenotype}, ${req.body.lab},
+                 ${req.body.reportedAt}::date, ${clin?.id ?? null}, ${'entered:' + crypto.randomUUID()}
+           WHERE EXISTS (SELECT 1 FROM care.patient WHERE id = ${req.params.id} AND practice_id = ANY(${sql.param(a.scope.staffPracticeIds)}::uuid[]))
+          RETURNING id`);
+          if (rows[0])
+            await audit(db, {
+              action: 'create',
+              entityType: 'pgx_result',
+              entityId: rows[0].id,
+              patientId: req.params.id,
+              purpose: 'treatment',
+              details: { gene: req.body.gene },
+            });
+          return rows[0]?.id;
+        });
+        if (!id)
+          return reply.code(404).send({ error: 'not_found', message: 'No such patient in your practice.' });
+        await deps.queue.add('engine.run', { patientIds: [req.params.id] });
+        return { id };
+      },
+    );
+
+    app.get(
+      '/api/desk/patients/:id',
+      {
+        preHandler: STAFF,
+        schema: { tags: ['desk'], params: Id, response: { 200: DeskPatient, 404: ErrorBody } },
+      },
+      async (req, reply) => {
+        const s = req.auth!.scope;
+        const out = await withScope('app', s, async (db) => {
+          const [p] = await db
+            .select()
+            .from(schema.patient)
+            .where(
+              and(
+                eq(schema.patient.id, req.params.id),
+                sql`practice_id = ANY(${sql.param(s.staffPracticeIds)}::uuid[])`,
+              ),
+            );
+          if (!p) return null;
+          const { rows: timeline } = await db.execute<z.infer<typeof DeskPatient>['timeline'][number]>(sql`
           SELECT * FROM (
             SELECT coalesce(started_at, created_at)::text AS at, 'call' AS kind,
                    'Call: ' || coalesce(outcome, step) AS title, NULL AS detail, id::text AS ref
@@ -175,246 +236,253 @@ export const deskRoutes: FastifyPluginAsyncZod = async (app) => {
             SELECT coalesce(signed_at, created_at)::text, 'care_plan', 'Care plan v' || version, status, id::text
               FROM care.care_plan WHERE patient_id = ${p.id}
           ) t ORDER BY at DESC LIMIT 200`);
-        const [consent] = await db
-          .select({ id: schema.careConsent.id })
-          .from(schema.careConsent)
-          .where(and(eq(schema.careConsent.patientId, p.id), sql`withdrawn_at IS NULL`));
+          const [consent] = await db
+            .select({ id: schema.careConsent.id })
+            .from(schema.careConsent)
+            .where(and(eq(schema.careConsent.patientId, p.id), sql`withdrawn_at IS NULL`));
+          await audit(db, {
+            action: 'read',
+            entityType: 'patient',
+            entityId: p.id,
+            patientId: p.id,
+            purpose: 'treatment',
+          });
+          return {
+            id: p.id,
+            name: p.name,
+            locale: p.locale,
+            birthYear: p.birthYear,
+            apcmEnrolled: !!consent,
+            carePlans: (await latestPlans(db, p.id)).map(planItem),
+            // "Tomoni: draftRenewalForDoctor" → "Tomoni: draft renewal for doctor"
+            timeline: timeline.map((e) =>
+              e.kind === 'action'
+                ? {
+                    ...e,
+                    title: e.title
+                      .replace(/([a-z])([A-Z])/g, '$1 $2')
+                      .replace(/: (.)/, (m) => m.toLowerCase())
+                      .replace(/ [A-Z]/g, (m) => m.toLowerCase()),
+                  }
+                : e,
+            ),
+          };
+        });
+        return (
+          out ?? reply.code(404).send({ error: 'not_found', message: 'No such patient in your practice.' })
+        );
+      },
+    );
+
+    app.post(
+      '/api/desk/patients/:id/care-plan/draft',
+      {
+        preHandler: STAFF,
+        schema: { tags: ['desk'], params: Id, response: { 200: CarePlanItem, 404: ErrorBody } },
+      },
+      async (req, reply) => {
+        const plan = await withScope('app', req.auth!.scope, async (db) => {
+          const [p] = await db
+            .select({ id: schema.patient.id })
+            .from(schema.patient)
+            .where(eq(schema.patient.id, req.params.id));
+          return p ? draftCarePlan(db, p.id, 'agent') : null;
+        });
+        return plan
+          ? planItem(plan)
+          : reply.code(404).send({ error: 'not_found', message: 'No such patient.' });
+      },
+    );
+
+    app.post(
+      '/api/desk/care-plans/:id/sign',
+      {
+        preHandler: PHYSICIAN,
+        schema: {
+          tags: ['desk'],
+          params: Id,
+          response: { 200: CarePlanItem, 403: ErrorBody, 404: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        try {
+          const signed = await withScope('app', req.auth!.scope, (db) =>
+            signCarePlan(db, req.params.id, req.auth!.userId),
+          );
+          return signed
+            ? planItem(signed)
+            : reply.code(404).send({ error: 'not_found', message: 'No draft with that id.' });
+        } catch {
+          return reply
+            .code(403)
+            .send({ error: 'forbidden', message: 'Only a physician of this practice can sign.' });
+        }
+      },
+    );
+
+    const listMonth = (s: RequestScope, month: string) =>
+      withScope('app', s, async (db) => {
+        const rows = await db
+          .select({ r: schema.apcmMonthRecord, name: schema.patient.name })
+          .from(schema.apcmMonthRecord)
+          .innerJoin(schema.patient, eq(schema.patient.id, schema.apcmMonthRecord.patientId))
+          .where(
+            and(
+              eq(schema.apcmMonthRecord.month, monthBounds(month).start),
+              sql`${schema.apcmMonthRecord.practiceId} = ANY(${sql.param(s.staffPracticeIds)}::uuid[])`,
+            ),
+          );
         await audit(db, {
           action: 'read',
-          entityType: 'patient',
-          entityId: p.id,
-          patientId: p.id,
-          purpose: 'treatment',
-        });
-        return {
-          id: p.id,
-          name: p.name,
-          locale: p.locale,
-          birthYear: p.birthYear,
-          apcmEnrolled: !!consent,
-          carePlans: (await latestPlans(db, p.id)).map(planItem),
-          // "Tomoni: draftRenewalForDoctor" → "Tomoni: draft renewal for doctor"
-          timeline: timeline.map((e) =>
-            e.kind === 'action'
-              ? {
-                  ...e,
-                  title: e.title
-                    .replace(/([a-z])([A-Z])/g, '$1 $2')
-                    .replace(/: (.)/, (m) => m.toLowerCase())
-                    .replace(/ [A-Z]/g, (m) => m.toLowerCase()),
-                }
-              : e,
-          ),
-        };
-      });
-      return (
-        out ?? reply.code(404).send({ error: 'not_found', message: 'No such patient in your practice.' })
-      );
-    },
-  );
-
-  app.post(
-    '/api/desk/patients/:id/care-plan/draft',
-    {
-      preHandler: STAFF,
-      schema: { tags: ['desk'], params: Id, response: { 200: CarePlanItem, 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      const plan = await withScope('app', req.auth!.scope, async (db) => {
-        const [p] = await db
-          .select({ id: schema.patient.id })
-          .from(schema.patient)
-          .where(eq(schema.patient.id, req.params.id));
-        return p ? draftCarePlan(db, p.id, 'agent') : null;
-      });
-      return plan
-        ? planItem(plan)
-        : reply.code(404).send({ error: 'not_found', message: 'No such patient.' });
-    },
-  );
-
-  app.post(
-    '/api/desk/care-plans/:id/sign',
-    {
-      preHandler: PHYSICIAN,
-      schema: { tags: ['desk'], params: Id, response: { 200: CarePlanItem, 403: ErrorBody, 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      try {
-        const signed = await withScope('app', req.auth!.scope, (db) =>
-          signCarePlan(db, req.params.id, req.auth!.userId),
-        );
-        return signed
-          ? planItem(signed)
-          : reply.code(404).send({ error: 'not_found', message: 'No draft with that id.' });
-      } catch {
-        return reply
-          .code(403)
-          .send({ error: 'forbidden', message: 'Only a physician of this practice can sign.' });
-      }
-    },
-  );
-
-  const listMonth = (s: RequestScope, month: string) =>
-    withScope('app', s, async (db) => {
-      const rows = await db
-        .select({ r: schema.apcmMonthRecord, name: schema.patient.name })
-        .from(schema.apcmMonthRecord)
-        .innerJoin(schema.patient, eq(schema.patient.id, schema.apcmMonthRecord.patientId))
-        .where(
-          and(
-            eq(schema.apcmMonthRecord.month, monthBounds(month).start),
-            sql`${schema.apcmMonthRecord.practiceId} = ANY(${sql.param(s.staffPracticeIds)}::uuid[])`,
-          ),
-        );
-      await audit(db, {
-        action: 'read',
-        entityType: 'apcm_month',
-        purpose: 'payment',
-        details: { month, n: rows.length },
-      });
-      return (
-        rows
-          .map(({ r, name }) => ({
-            id: r.id,
-            patientId: r.patientId,
-            patientName: name,
-            month: r.month,
-            hcpcs: r.hcpcs,
-            chronicConditions: r.chronicConditions,
-            status: r.status,
-            exclusionReason: r.exclusionReason,
-            services: r.services.length,
-            rateCents: r.hcpcs && r.status !== 'excluded' ? APCM_RATE_CENTS[r.hcpcs] : null,
-            serviceList: r.services,
-            consentId: r.consentId,
-            carePlanId: r.carePlanId,
-          }))
-          // What needs the biller first: ready, then billed, then the rest with their reasons.
-          .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.patientName.localeCompare(b.patientName))
-      );
-    });
-
-  app.get(
-    '/api/desk/apcm',
-    { preHandler: STAFF, schema: { tags: ['desk'], querystring: MonthQ, response: { 200: ApcmList } } },
-    async (req) => listMonth(req.auth!.scope, req.query.month),
-  );
-
-  app.post(
-    '/api/desk/apcm/build',
-    {
-      preHandler: STAFF,
-      schema: {
-        tags: ['desk'],
-        body: z.strictObject({ month: Month }),
-        response: { 200: z.object({ patients: z.number(), ready: z.number() }) },
-      },
-    },
-    async (req) => {
-      const s = req.auth!.scope;
-      const r = await withScope('app', s, (db) => buildApcmMonth(db, s.staffPracticeIds, req.body.month));
-      return { patients: r.patients, ready: r.ready };
-    },
-  );
-
-  app.post(
-    '/api/desk/apcm/:id/billed',
-    {
-      preHandler: requireAuth({ roles: ['physician', 'front_desk'] }),
-      schema: { tags: ['desk'], params: Id, response: { 204: z.null(), 404: ErrorBody } },
-    },
-    async (req, reply) => {
-      const ok = await withScope('app', req.auth!.scope, async (db) => {
-        const [r] = await db
-          .update(schema.apcmMonthRecord)
-          .set({ status: 'billed', billedAt: new Date(), billedBy: req.auth!.userId })
-          .where(
-            and(eq(schema.apcmMonthRecord.id, req.params.id), eq(schema.apcmMonthRecord.status, 'ready')),
-          )
-          .returning({ patientId: schema.apcmMonthRecord.patientId });
-        if (r)
-          await audit(db, {
-            action: 'update',
-            entityType: 'apcm_month',
-            entityId: req.params.id,
-            patientId: r.patientId,
-            purpose: 'payment',
-            details: { status: 'billed' },
-          });
-        return !!r;
-      });
-      return ok
-        ? reply.code(204).send(null)
-        : reply.code(404).send({ error: 'not_found', message: 'No ready record with that id.' });
-    },
-  );
-
-  /** The evidence export a biller or auditor reads: one row per ready or billed patient-month. */
-  app.get(
-    '/api/desk/apcm/export',
-    {
-      preHandler: requireAuth({ roles: ['physician', 'front_desk'] }),
-      schema: { tags: ['desk'], querystring: MonthQ },
-    },
-    async (req, reply) => {
-      const s = req.auth!.scope;
-      const rows = (await listMonth(s, req.query.month)).filter(
-        (r) => r.status === 'ready' || r.status === 'billed',
-      );
-      await withScope('app', s, (db) =>
-        audit(db, {
-          action: 'export',
           entityType: 'apcm_month',
           purpose: 'payment',
-          details: { month: req.query.month, rows: rows.length },
-        }),
-      );
-      // A leading =, +, - or @ would run as a formula in a spreadsheet: prefix it (CSV injection).
-      const cell = (v: unknown) => {
-        const t = String(v ?? '').replace(/^([=+\-@])/, "'$1");
-        return /[",\n]/.test(t) ? `"${t.replaceAll('"', '""')}"` : t;
-      };
-      const header = [
-        'patient',
-        'month',
-        'hcpcs',
-        'chronic_conditions',
-        'consent_id',
-        'care_plan_id',
-        'services',
-        'status',
-      ];
-      const lines = rows.map((r) =>
-        [
-          r.patientName,
-          r.month,
-          r.hcpcs,
-          r.chronicConditions.join('; '),
-          r.consentId,
-          r.carePlanId,
-          r.serviceList.map((x) => `${x.kind}@${x.at.slice(0, 10)}#${x.ref}`).join('; '),
-          r.status,
-        ]
-          .map(cell)
-          .join(','),
-      );
-      return reply
-        .type('text/csv; charset=utf-8')
-        .header('content-disposition', `attachment; filename="apcm-${req.query.month}.csv"`)
-        .send([header.join(','), ...lines].join('\n') + '\n');
-    },
-  );
+          details: { month, n: rows.length },
+        });
+        return (
+          rows
+            .map(({ r, name }) => ({
+              id: r.id,
+              patientId: r.patientId,
+              patientName: name,
+              month: r.month,
+              hcpcs: r.hcpcs,
+              chronicConditions: r.chronicConditions,
+              status: r.status,
+              exclusionReason: r.exclusionReason,
+              services: r.services.length,
+              rateCents: r.hcpcs && r.status !== 'excluded' ? APCM_RATE_CENTS[r.hcpcs] : null,
+              serviceList: r.services,
+              consentId: r.consentId,
+              carePlanId: r.carePlanId,
+            }))
+            // What needs the biller first: ready, then billed, then the rest with their reasons.
+            .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.patientName.localeCompare(b.patientName))
+        );
+      });
 
-  app.get(
-    '/api/desk/report',
-    { preHandler: STAFF, schema: { tags: ['desk'], querystring: MonthQ, response: { 200: PracticeReport } } },
-    async (req) => {
-      const s = req.auth!.scope;
-      const { start, next } = monthBounds(req.query.month);
-      return withScope('app', s, async (db) => {
-        const ids = sql.param(s.staffPracticeIds);
-        const { rows } = await db.execute<Record<string, number>>(sql`
+    app.get(
+      '/api/desk/apcm',
+      { preHandler: STAFF, schema: { tags: ['desk'], querystring: MonthQ, response: { 200: ApcmList } } },
+      async (req) => listMonth(req.auth!.scope, req.query.month),
+    );
+
+    app.post(
+      '/api/desk/apcm/build',
+      {
+        preHandler: STAFF,
+        schema: {
+          tags: ['desk'],
+          body: z.strictObject({ month: Month }),
+          response: { 200: z.object({ patients: z.number(), ready: z.number() }) },
+        },
+      },
+      async (req) => {
+        const s = req.auth!.scope;
+        const r = await withScope('app', s, (db) => buildApcmMonth(db, s.staffPracticeIds, req.body.month));
+        return { patients: r.patients, ready: r.ready };
+      },
+    );
+
+    app.post(
+      '/api/desk/apcm/:id/billed',
+      {
+        preHandler: requireAuth({ roles: ['physician', 'front_desk'] }),
+        schema: { tags: ['desk'], params: Id, response: { 204: z.null(), 404: ErrorBody } },
+      },
+      async (req, reply) => {
+        const ok = await withScope('app', req.auth!.scope, async (db) => {
+          const [r] = await db
+            .update(schema.apcmMonthRecord)
+            .set({ status: 'billed', billedAt: new Date(), billedBy: req.auth!.userId })
+            .where(
+              and(eq(schema.apcmMonthRecord.id, req.params.id), eq(schema.apcmMonthRecord.status, 'ready')),
+            )
+            .returning({ patientId: schema.apcmMonthRecord.patientId });
+          if (r)
+            await audit(db, {
+              action: 'update',
+              entityType: 'apcm_month',
+              entityId: req.params.id,
+              patientId: r.patientId,
+              purpose: 'payment',
+              details: { status: 'billed' },
+            });
+          return !!r;
+        });
+        return ok
+          ? reply.code(204).send(null)
+          : reply.code(404).send({ error: 'not_found', message: 'No ready record with that id.' });
+      },
+    );
+
+    /** The evidence export a biller or auditor reads: one row per ready or billed patient-month. */
+    app.get(
+      '/api/desk/apcm/export',
+      {
+        preHandler: requireAuth({ roles: ['physician', 'front_desk'] }),
+        schema: { tags: ['desk'], querystring: MonthQ },
+      },
+      async (req, reply) => {
+        const s = req.auth!.scope;
+        const rows = (await listMonth(s, req.query.month)).filter(
+          (r) => r.status === 'ready' || r.status === 'billed',
+        );
+        await withScope('app', s, (db) =>
+          audit(db, {
+            action: 'export',
+            entityType: 'apcm_month',
+            purpose: 'payment',
+            details: { month: req.query.month, rows: rows.length },
+          }),
+        );
+        // A leading =, +, - or @ would run as a formula in a spreadsheet: prefix it (CSV injection).
+        const cell = (v: unknown) => {
+          const t = String(v ?? '').replace(/^([=+\-@])/, "'$1");
+          return /[",\n]/.test(t) ? `"${t.replaceAll('"', '""')}"` : t;
+        };
+        const header = [
+          'patient',
+          'month',
+          'hcpcs',
+          'chronic_conditions',
+          'consent_id',
+          'care_plan_id',
+          'services',
+          'status',
+        ];
+        const lines = rows.map((r) =>
+          [
+            r.patientName,
+            r.month,
+            r.hcpcs,
+            r.chronicConditions.join('; '),
+            r.consentId,
+            r.carePlanId,
+            r.serviceList.map((x) => `${x.kind}@${x.at.slice(0, 10)}#${x.ref}`).join('; '),
+            r.status,
+          ]
+            .map(cell)
+            .join(','),
+        );
+        return reply
+          .type('text/csv; charset=utf-8')
+          .header('content-disposition', `attachment; filename="apcm-${req.query.month}.csv"`)
+          .send([header.join(','), ...lines].join('\n') + '\n');
+      },
+    );
+
+    app.get(
+      '/api/desk/report',
+      {
+        preHandler: STAFF,
+        schema: { tags: ['desk'], querystring: MonthQ, response: { 200: PracticeReport } },
+      },
+      async (req) => {
+        const s = req.auth!.scope;
+        const { start, next } = monthBounds(req.query.month);
+        return withScope('app', s, async (db) => {
+          const ids = sql.param(s.staffPracticeIds);
+          const { rows } = await db.execute<Record<string, number>>(sql`
           WITH pts AS (SELECT id FROM care.patient WHERE practice_id = ANY(${ids}::uuid[]))
           SELECT
             (SELECT count(*) FROM care.care_consent WHERE program = 'apcm' AND patient_id IN (SELECT id FROM pts)
@@ -431,26 +499,26 @@ export const deskRoutes: FastifyPluginAsyncZod = async (app) => {
             (SELECT count(*) FROM care.warning WHERE patient_id IN (SELECT id FROM pts) AND status = 'resolved'
                AND resolved_at >= ${start}::date AND resolved_at < ${next}::date
                AND resolved_at::date < problem_date)::int AS caught`);
-        const r = rows[0]!;
-        const recs = await listMonth(s, req.query.month);
-        const count = (st: string) => recs.filter((x) => x.status === st).length;
-        return {
-          month: start,
-          enrolled: r.enrolled ?? 0,
-          ready: count('ready'),
-          billed: count('billed'),
-          excluded: count('excluded'),
-          apcmRevenueCents: recs.reduce(
-            (a, x) => a + (x.status === 'ready' || x.status === 'billed' ? (x.rateCents ?? 0) : 0),
-            0,
-          ),
-          callsCompleted: r.calls ?? 0,
-          flagsRaised: r.flags_raised ?? 0,
-          flagsHandled: r.flags_handled ?? 0,
-          tasksDoneByTomoni: r.tasks ?? 0,
-          problemsCaughtEarly: r.caught ?? 0,
-        };
-      });
-    },
-  );
-};
+          const r = rows[0]!;
+          const recs = await listMonth(s, req.query.month);
+          const count = (st: string) => recs.filter((x) => x.status === st).length;
+          return {
+            month: start,
+            enrolled: r.enrolled ?? 0,
+            ready: count('ready'),
+            billed: count('billed'),
+            excluded: count('excluded'),
+            apcmRevenueCents: recs.reduce(
+              (a, x) => a + (x.status === 'ready' || x.status === 'billed' ? (x.rateCents ?? 0) : 0),
+              0,
+            ),
+            callsCompleted: r.calls ?? 0,
+            flagsRaised: r.flags_raised ?? 0,
+            flagsHandled: r.flags_handled ?? 0,
+            tasksDoneByTomoni: r.tasks ?? 0,
+            problemsCaughtEarly: r.caught ?? 0,
+          };
+        });
+      },
+    );
+  };

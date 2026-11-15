@@ -103,7 +103,29 @@ export async function loadFacts(db: Db, today: string, patientIds?: string[]): P
             JOIN care.pharmacy ph ON ph.id = c.pharmacy_id`,
       ),
   ]);
-  return { today, fills, patientPlans, plans, formulary, prices, pbmChanges, shortages, closures };
+  const pgx = await rowsOf<NonNullable<Facts['pgx']>[number]>(
+    db,
+    sql`SELECT id AS "resultId", patient_id AS "patientId", gene, diplotype, phenotype, reported_at::text AS "reportedAt", lab
+          FROM care.pgx_result ${patientIds ? sql`WHERE patient_id = ANY(${sql.param(patientIds)}::uuid[])` : sql``}`,
+  );
+  const geneRules = await rowsOf<NonNullable<Facts['geneRules']>[number]>(
+    db,
+    sql`SELECT gene, phenotype, rxcui, drug, recommendation_code AS "recommendationCode", source_url AS "sourceUrl", version
+          FROM care.gene_drug_rule`,
+  );
+  return {
+    today,
+    fills,
+    patientPlans,
+    plans,
+    formulary,
+    prices,
+    pbmChanges,
+    shortages,
+    closures,
+    pgx,
+    geneRules,
+  };
 }
 
 /** Writes drafts and returns counts. Runs inside the caller's transaction. */
@@ -143,7 +165,7 @@ export async function saveWarnings(
     db,
     sql`WITH gone AS (
           UPDATE care.warning SET status = 'resolved', resolved_at = now(), outcome = 'unknown'
-           WHERE status = 'open' AND source_kind IN ('fill', 'data_file')
+           WHERE status = 'open' AND source_kind IN ('fill', 'data_file', 'pgx')
              AND NOT (dedupe_key = ANY(${sql.param(keys)}::text[]))
              ${patientIds ? sql`AND patient_id = ANY(${sql.param(patientIds)}::uuid[])` : sql``}
           RETURNING id, patient_id, type)

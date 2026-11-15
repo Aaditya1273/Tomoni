@@ -226,3 +226,55 @@ describe('dedupe keys', () => {
     expect(c[0]!.dedupeKey).not.toBe(a[0]!.dedupeKey);
   });
 });
+
+describe('Gene-to-Pill (doctor only)', () => {
+  const rule = {
+    gene: 'CYP2C19',
+    phenotype: 'Poor Metabolizer',
+    rxcui: '309362',
+    drug: 'clopidogrel',
+    recommendationCode: 'avoid_consider_alternative',
+    sourceUrl: 'https://cpicpgx.org/guidelines/guideline-for-clopidogrel-and-cyp2c19/',
+    version: '2022',
+  };
+  const res = {
+    resultId: 'r1',
+    patientId: 'p1',
+    gene: 'CYP2C19',
+    diplotype: '*2/*2',
+    phenotype: 'Poor Metabolizer',
+    reportedAt: '2026-11-10',
+    lab: 'Demo Lab',
+  };
+  const clopidogrel = fill({
+    id: 'f1',
+    fillDate: '2026-11-01',
+    rxcui: '309362',
+    name: 'clopidogrel 75 MG Oral Tablet',
+  });
+
+  it('a poor metabolizer on clopidogrel raises a mismatch citing CPIC', () => {
+    const [w] = detectWarnings(facts({ fills: [clopidogrel], pgx: [res], geneRules: [rule] }));
+    expect(w).toMatchObject({
+      type: 'gene_drug_mismatch',
+      sourceKind: 'pgx',
+      sourceRef: 'r1',
+      accessStatus: 'red',
+    });
+    expect(w!.evidence).toMatchObject({ gene: 'CYP2C19', diplotype: '*2/*2', guideline: rule.sourceUrl });
+  });
+  it('no rule for the phenotype, or not taking the drug: nothing', () => {
+    expect(
+      types(
+        facts({
+          fills: [clopidogrel],
+          pgx: [{ ...res, phenotype: 'Normal Metabolizer' }],
+          geneRules: [rule],
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      types(facts({ fills: [fill({ id: 'f2', fillDate: '2026-11-01' })], pgx: [res], geneRules: [rule] })),
+    ).toEqual([]);
+  });
+});

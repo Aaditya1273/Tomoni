@@ -17,7 +17,8 @@ export type WarningType =
   | 'tier_change'
   | 'negotiated_price_change'
   | 'pharmacy_closure'
-  | 'shortage';
+  | 'shortage'
+  | 'gene_drug_mismatch';
 export type AccessStatus = 'green' | 'amber' | 'red';
 
 export interface FillFact {
@@ -61,6 +62,25 @@ export interface Facts {
   })[];
   shortages: (FileRef & { rxcui: string; reportedOn: string; resolvedOn: string | null })[];
   closures: (FileRef & { pharmacyId: string; pharmacyName: string; closesOn: string })[];
+  /** Pharmacogenomic results and CPIC rules (Gene-to-Pill). Optional: most patients have none. */
+  pgx?: {
+    resultId: string;
+    patientId: string;
+    gene: string;
+    diplotype: string;
+    phenotype: string;
+    reportedAt: string;
+    lab: string;
+  }[];
+  geneRules?: {
+    gene: string;
+    phenotype: string;
+    rxcui: string;
+    drug: string;
+    recommendationCode: string;
+    sourceUrl: string;
+    version: string;
+  }[];
 }
 
 export interface WarningDraft {
@@ -71,7 +91,7 @@ export interface WarningDraft {
   problemDate: string;
   daysUntilProblem: number;
   accessStatus: AccessStatus;
-  sourceKind: 'fill' | 'data_file';
+  sourceKind: 'fill' | 'data_file' | 'pgx';
   sourceRef: string;
   sourceDate: string;
   evidence: Record<string, unknown>;
@@ -374,6 +394,35 @@ export function detectWarnings(f: Facts): WarningDraft[] {
           closesOn: c.closesOn,
           drugs: hit.map((r) => r.last.name),
           fillIds: hit.map((r) => r.last.id),
+        },
+      });
+    }
+  }
+  // ── Gene-to-Pill: a medicine the patient takes now, against their genotype (doctor only) ──
+  for (const res of f.pgx ?? []) {
+    for (const r of regimens.get(res.patientId) ?? []) {
+      const rule = (f.geneRules ?? []).find(
+        (g) => g.gene === res.gene && g.phenotype === res.phenotype && g.rxcui === r.last.rxcui,
+      );
+      if (!rule) continue;
+      draft({
+        patientId: res.patientId,
+        ...medFields(r),
+        type: 'gene_drug_mismatch',
+        problemDate: today,
+        sourceKind: 'pgx',
+        sourceRef: res.resultId,
+        sourceDate: res.reportedAt,
+        evidence: {
+          drug: r.last.name,
+          gene: res.gene,
+          diplotype: res.diplotype,
+          phenotype: res.phenotype,
+          lab: res.lab,
+          recommendation: rule.recommendationCode,
+          guideline: rule.sourceUrl,
+          guidelineVersion: rule.version,
+          fillId: r.last.id,
         },
       });
     }

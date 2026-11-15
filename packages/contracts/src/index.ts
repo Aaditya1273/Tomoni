@@ -383,7 +383,7 @@ export type PracticeReport = z.infer<typeof PracticeReport>;
 
 /** One row of the doctor desk queue (§5.6): everything that needs a person, most urgent first. */
 export const QueueItem = z.object({
-  kind: z.enum(['flag', 'approval', 'care_plan']),
+  kind: z.enum(['flag', 'approval', 'care_plan', 'gene_drug']),
   id: z.uuid(),
   patientId: z.uuid(),
   patientName: z.string(),
@@ -400,6 +400,10 @@ export const QueueItem = z.object({
   warningId: z.uuid().nullable().optional(),
   // care plan
   version: z.number().optional(),
+  // gene-drug warning (doctor only)
+  gene: z.string().optional(),
+  phenotype: z.string().optional(),
+  guideline: z.string().optional(),
 });
 export type QueueItem = z.infer<typeof QueueItem>;
 export const DeskQueue = z.array(QueueItem);
@@ -584,3 +588,21 @@ export const SponsorUsage = z.array(
   z.object({ month: z.string(), unit: z.string(), units: z.number(), amountCents: z.number() }),
 );
 export type SponsorUsage = z.infer<typeof SponsorUsage>;
+
+// ─── Gene-to-Pill (Phase 6) ──────────────────────────────────────────────────
+export const PgxResultBody = z.strictObject({
+  gene: z.enum(['CYP2C19', 'SLCO1B1', 'CYP2C9', 'VKORC1', 'CYP2D6']),
+  diplotype: z.string().regex(/^[*A-Za-z0-9./ -]{1,30}$/),
+  phenotype: z.enum([
+    'Ultrarapid Metabolizer',
+    'Rapid Metabolizer',
+    'Normal Metabolizer',
+    'Intermediate Metabolizer',
+    'Poor Metabolizer',
+    'Normal Function',
+    'Decreased Function',
+    'Poor Function',
+  ]),
+  lab: z.string().trim().min(2).max(120),
+  reportedAt: z.iso.date(),
+});

@@ -87,7 +87,13 @@ export function DeskQueue({ initial, canSign }: { initial: QueueItem[]; canSign:
       ? t(`class.${i.flagClass!}`)
       : i.kind === 'approval'
         ? t(`what.${i.skill as 'draftRenewalForDoctor'}`, { drug: i.drug ? drugName(i.drug) : '' })
-        : t('planToSign', { v: i.version ?? 1 });
+        : i.kind === 'gene_drug'
+          ? t('geneDrug', {
+              drug: i.drug ? drugName(i.drug) : '',
+              gene: i.gene ?? '',
+              phenotype: i.phenotype ?? '',
+            })
+          : t('planToSign', { v: i.version ?? 1 });
   const pickedSignable = items.filter((x) => picked.has(x.id) && signable(x)).length;
 
   return (
@@ -121,7 +127,13 @@ export function DeskQueue({ initial, canSign }: { initial: QueueItem[]; canSign:
                 className={`flex flex-col gap-1.5 py-3 pl-2 ${n === cursor ? 'border-l-4 border-neel bg-neel-soft' : 'border-l-4 border-transparent'}`}
                 {...{
                   [`data-${i.kind === 'care_plan' ? 'plan' : i.kind}`]:
-                    i.kind === 'flag' ? i.flagClass : i.kind === 'approval' ? i.skill : 'draft',
+                    i.kind === 'flag'
+                      ? i.flagClass
+                      : i.kind === 'approval'
+                        ? i.skill
+                        : i.kind === 'gene_drug'
+                          ? i.gene
+                          : 'draft',
                 }}
               >
                 <div className="flex flex-wrap items-center gap-2">
@@ -262,6 +274,27 @@ function Evidence({ item }: { item: QueueItem }) {
         ) : (
           <p className="text-muted">…</p>
         ))}
+      {item.kind === 'gene_drug' && (
+        <>
+          <p>
+            {t('geneEvidence', {
+              gene: item.gene ?? '',
+              phenotype: item.phenotype ?? '',
+              drug: item.drug ? drugName(item.drug) : '',
+            })}
+          </p>
+          {item.guideline?.startsWith('https://cpicpgx.org/') && (
+            <a
+              href={item.guideline}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-neel underline underline-offset-2"
+            >
+              {t('guideline')}
+            </a>
+          )}
+        </>
+      )}
       {item.kind === 'care_plan' &&
         (plan ? (
           <ul className="list-disc pl-5 text-sm">

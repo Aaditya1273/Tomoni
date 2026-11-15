@@ -5,6 +5,7 @@ import { StatusPill } from '@tomoni/ui';
 import { apiGet, requireSurface } from '@tomoni/web-shared/server';
 import { StaffShell } from '@/components/StaffShell';
 import { Decide } from '@/components/desk/Decide';
+import { PgxForm } from '@/components/desk/PgxForm';
 import { drugName } from '@/lib/medicines';
 
 export const metadata = { title: 'Patient' };
@@ -74,8 +75,14 @@ export default async function DeskPatientPage({ params }: { params: Promise<{ id
             />
           )}
         </section>
-        <section aria-labelledby="tl-h">
-          <h2 id="tl-h" className="mb-2 font-semibold">
+        <section aria-labelledby="tl-h" className="flex flex-col gap-4">
+          {isDoctor && (
+            <PgxForm
+              patientId={p.id}
+              today={(process.env.TOMONI_TODAY ?? new Date().toISOString()).slice(0, 10)}
+            />
+          )}
+          <h2 id="tl-h" className="font-semibold">
             {t('patient.timeline')}
           </h2>
           <ol className="flex flex-col divide-y divide-line text-sm">

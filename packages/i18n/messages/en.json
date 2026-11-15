@@ -400,6 +400,20 @@
       "card": "{name} may fit {trial}. Discuss at the next visit?",
       "introduced": "Introduced at visit",
       "notInterested": "Not interested"
+    },
+    "geneDrug": "Gene-drug: {drug} with {gene} {phenotype}",
+    "geneEvidence": "{gene} {phenotype} reported for this patient. A CPIC level A guideline applies to {drug}. For the doctor only; the family does not see this.",
+    "guideline": "Read the CPIC guideline",
+    "pgx": {
+      "title": "Pharmacogenomic result",
+      "help": "Enter a result from the lab report. Tomoni checks every current and future prescription against it.",
+      "gene": "Gene",
+      "diplotype": "Diplotype",
+      "phenotype": "Phenotype",
+      "lab": "Lab",
+      "reported": "Reported on",
+      "save": "Save result",
+      "saved": "Saved. Medicines are being checked."
     }
   },
   "ops": {

@@ -138,7 +138,7 @@ export async function buildServer(opts: BuildOptions = {}) {
   const llm = opts.llm ?? llmFromEnv();
   await app.register(callRoutes({ simulator: config.simulator, llm, queue }));
   await app.register(actionRoutes({ queue }));
-  await app.register(deskRoutes);
+  await app.register(deskRoutes({ queue }));
   await app.register(familyExtraRoutes({ publicOrigin: config.publicOrigin }));
   await app.register(familyMedicineRoutes({ queue }));
   await app.register(researchRoutes({ queue }));
