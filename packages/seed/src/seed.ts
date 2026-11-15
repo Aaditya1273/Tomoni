@@ -13,6 +13,7 @@ import {
   runEngine,
   today,
 } from '@tomoni/medicines';
+import { matchTrials } from '@tomoni/trials';
 import { POOLS, type Lang } from './names';
 
 /**
@@ -456,8 +457,57 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
   }
   const run = await withScope('worker', systemScope('seed'), (w) => runEngine(w, { today: asOf }));
 
+  // ── Research registry (Phase 5): an approved protocol, a synthetic sponsor study, opt-ins ──
+  const SUMMARY = {
+    en: 'Tomoni Registry is a research study. If you join, researchers may use your Tomoni records, without your name, to find medical studies that fit people like you and to improve care for older adults. Joining is your choice. It does not change your care. You can leave at any time, and from then on your data is not used.',
+    hi: 'Tomoni रजिस्ट्री एक शोध अध्ययन है। अगर आप जुड़ते हैं, तो शोधकर्ता आपके नाम के बिना आपके Tomoni रिकॉर्ड का उपयोग कर सकते हैं, ताकि आप जैसे लोगों के लिए सही मेडिकल अध्ययन मिलें और बुज़ुर्गों की देखभाल बेहतर हो। जुड़ना आपकी मर्ज़ी है। इससे आपकी देखभाल नहीं बदलती। आप कभी भी छोड़ सकते हैं, और उसके बाद आपका डेटा उपयोग नहीं होगा।',
+  };
+  const [admin] = (
+    await db.execute<{ id: string }>(
+      sql`SELECT id FROM auth.user_account WHERE email = 'admin@demo.tomoni.test'`,
+    )
+  ).rows;
+  const [protocol] = (
+    await db.execute<{
+      id: string;
+    }>(sql`INSERT INTO research.protocol (code, version, title, irb_name, irb_approval_ref, approved_at,
+      expires_at, status, plain_summary) VALUES ('TOMONI-REG', 1, 'Tomoni Registry (synthetic demo protocol)', 'Central IRB (demo)',
+      'DEMO-IRB-0001', '2026-11-01', '2027-11-01', 'approved', ${JSON.stringify(SUMMARY)}::jsonb) RETURNING id`)
+  ).rows;
+  await db.execute(
+    sql`INSERT INTO research.sponsor (id, name, kind) VALUES (${SPONSOR_DEMO_ID}, 'Demo Sponsor (synthetic)', 'sponsor')`,
+  );
+  const [trial] = (
+    await db.execute<{ id: string }>(sql`INSERT INTO research.trial (sponsor_id, title, therapeutic_area)
+      VALUES (${SPONSOR_DEMO_ID}, 'HEART-SA: heart disease in older South Asian adults (synthetic demo)', 'cardiology') RETURNING id`)
+  ).rows;
+  await db.execute(sql`INSERT INTO research.trial_criterion (trial_id, field, value) VALUES
+    (${trial!.id}, 'age_band_min', '65'),
+    (${trial!.id}, 'condition_any', '["coronary_artery_disease","heart_failure","atrial_fibrillation"]'),
+    (${trial!.id}, 'language_any', '["hi","gu","pa","ta","bn"]')`);
+  for (const [unit, cents] of [
+    ['prescreen_completed', 15000],
+    ['introduction_delivered', 40000],
+    ['consent_prep_call', 25000],
+    ['retention_participant_month', 15000],
+  ] as const)
+    await db.execute(sql`INSERT INTO research.service_rate (sponsor_id, unit, rate_cents, valid_from, set_by)
+      VALUES (${SPONSOR_DEMO_ID}, ${unit}, ${cents}, '2026-11-01', ${admin!.id})`);
+  // About 55% opt in (STRATEGY kill criterion: at least 50%). Raj and Kokila decide in the demo.
+  let optedIn = 0;
+  for (const p of people) {
+    if (p.id === raj!.id || p.id === kokila!.id || rnd() > 0.55) continue;
+    await db.execute(sql`INSERT INTO research.research_id (patient_id) VALUES (${p.id})`);
+    await db.execute(sql`INSERT INTO research.research_consent (patient_id, protocol_id, given_by_kind, hipaa_authorization_ref,
+      recording_permission, scope_speech_task, scope_trial_matching, scope_pgx_research, method, locale, given_at)
+      VALUES (${p.id}, ${protocol!.id}, 'patient', 'HIPAA-AUTH-DEMO', ${rnd() < 0.7}, ${rnd() < 0.6}, true, ${rnd() < 0.3},
+              'verbal_recorded', 'en', ${given})`);
+    optedIn++;
+  }
+  const matched = await withScope('worker', systemScope('seed'), (w) => matchTrials(w, asOf));
+
   log(
     `seeded 3 US practices with ${people.length} patients, 1 India household, ${enrolled.length} APCM consents, ${DEMO_LOGINS.length} demo logins, ` +
-      `${fills} fills, ${run.open} open warnings (as of ${asOf})`,
+      `${fills} fills, ${run.open} open warnings, ${optedIn} research opt-ins, ${matched.created} trial matches (as of ${asOf})`,
   );
 }

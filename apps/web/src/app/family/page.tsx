@@ -191,12 +191,14 @@ export default async function FamilyToday({
         }),
       )}
 
-      <Link
-        href="/family/invite"
-        className="self-start font-semibold text-jamun underline underline-offset-2"
-      >
-        {t('inviteLink')}
-      </Link>
+      <div className="flex flex-wrap gap-x-6 gap-y-2">
+        <Link href="/family/invite" className="font-semibold text-jamun underline underline-offset-2">
+          {t('inviteLink')}
+        </Link>
+        <Link href="/family/research" className="font-semibold text-jamun underline underline-offset-2">
+          {t('research.link')}
+        </Link>
+      </div>
 
       <div className="mt-auto border-t border-line pt-6">
         <PrefsMenu initialTheme={prefs.theme} initialLargeText={prefs.largeText} />

@@ -64,6 +64,7 @@ export const JobPayloads = {
   'call.place': z.strictObject({ callId: z.uuid() }),
   'notify.family': z.strictObject({ flagId: z.uuid() }),
   'action.run': z.strictObject({ actionId: z.uuid() }),
+  'trials.match': z.strictObject({}),
 } as const;
 export type JobName = keyof typeof JobPayloads;
 export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;
@@ -452,3 +453,134 @@ export const AddMedicineBody = z.strictObject({
   /** Base64 photo of the prescription or pharmacy bill, at most ~5 MB. */
   photo: z.string().max(7_000_000).nullable(),
 });
+
+// ─── research and Trial Bridge (Phase 5) ────────────────────────────────────
+export const ResearchScopes = z.strictObject({
+  speechTask: z.boolean(),
+  trialMatching: z.boolean(),
+  pgxResearch: z.boolean(),
+});
+export const ResearchOverview = z.object({
+  protocol: z
+    .object({
+      id: z.uuid(),
+      title: z.string(),
+      code: z.string(),
+      version: z.number(),
+      irbName: z.string(),
+      irbApprovalRef: z.string().nullable(),
+      expiresAt: z.string().nullable(),
+      summary: z.string(),
+    })
+    .nullable(),
+  people: z.array(
+    z.object({
+      patientId: z.uuid(),
+      name: z.string(),
+      /** How the signed-in user may consent for this person, if at all (rule 2.6). */
+      canConsentAs: z.enum(['patient', 'representative']).nullable(),
+      representativeId: z.uuid().nullable(),
+      consent: z
+        .object({
+          id: z.uuid(),
+          scopes: ResearchScopes,
+          recordingPermission: z.boolean(),
+          givenAt: z.string(),
+          givenBy: z.string(),
+        })
+        .nullable(),
+    }),
+  ),
+});
+export type ResearchOverview = z.infer<typeof ResearchOverview>;
+export const ResearchConsentBody = z.strictObject({
+  patientId: z.uuid(),
+  protocolId: z.uuid(),
+  scopes: ResearchScopes,
+  recordingPermission: z.boolean(),
+  /** Typed full name: the e-signature. Kept in the audit trail, not on the consent row. */
+  signature: z.string().trim().min(2).max(120),
+});
+export const TrialIntro = z.object({
+  matchId: z.uuid(),
+  patientId: z.uuid(),
+  patientName: z.string(),
+  trialTitle: z.string(),
+  therapeuticArea: z.string(),
+  status: z.string(),
+});
+export const TrialIntros = z.array(TrialIntro);
+export type TrialIntros = z.infer<typeof TrialIntros>;
+export const MatchStage = z.enum([
+  'prescreened',
+  'introduced',
+  'consent_prep',
+  'referred',
+  'randomized',
+  'declined',
+  'ineligible',
+]);
+export const ResearchMatches = z.array(
+  z.object({
+    matchId: z.uuid(),
+    patientName: z.string(),
+    trialTitle: z.string(),
+    status: z.string(),
+    updatedAt: z.string(),
+  }),
+);
+export type ResearchMatches = z.infer<typeof ResearchMatches>;
+// Sponsor portal: aggregates only.
+export const SponsorTrials = z.array(
+  z.object({
+    id: z.uuid(),
+    title: z.string(),
+    nctId: z.string().nullable(),
+    therapeuticArea: z.string(),
+    status: z.string(),
+  }),
+);
+export type SponsorTrials = z.infer<typeof SponsorTrials>;
+export const FeasibilityBody = z.strictObject({
+  conditions: z
+    .array(
+      z.enum([
+        'diabetes',
+        'hypertension',
+        'hyperlipidemia',
+        'coronary_artery_disease',
+        'heart_failure',
+        'atrial_fibrillation',
+        'copd',
+        'asthma',
+        'ckd',
+        'hypothyroidism',
+        'dementia',
+        'depression',
+        'osteoarthritis',
+        'bph',
+      ]),
+    )
+    .max(5)
+    .optional(),
+  languages: z
+    .array(z.enum(['en', 'hi', 'gu', 'ta', 'pa', 'bn']))
+    .max(6)
+    .optional(),
+  inpatient_within_days: z
+    .union([z.literal(0), z.literal(90), z.literal(180), z.literal(365), z.literal(730)])
+    .optional(),
+});
+export const Feasibility = z.object({
+  total: z.number().nullable(),
+  byAgeBand: z.array(z.object({ band: z.string(), n: z.number().nullable() })),
+  suppressedUnder: z.number(),
+  roundedTo: z.number(),
+});
+export type Feasibility = z.infer<typeof Feasibility>;
+export const Funnel = z.record(z.string(), z.number().nullable());
+export type Funnel = z.infer<typeof Funnel>;
+export const SponsorUsage = z.array(
+  z.object({ month: z.string(), unit: z.string(), units: z.number(), amountCents: z.number() }),
+);
+export type SponsorUsage = z.infer<typeof SponsorUsage>;

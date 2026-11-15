@@ -16,6 +16,8 @@ export default defineConfig({
   outputDir: './test-results',
   fullyParallel: false,
   workers: 1,
+  // Signing in staff waits for an unused TOTP step (replay protection), which can take up to 60 s.
+  timeout: 90_000,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   globalSetup: './e2e/global-setup.ts',

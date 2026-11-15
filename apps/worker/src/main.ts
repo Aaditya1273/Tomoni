@@ -22,6 +22,11 @@ if (process.env.TOMONI_CALL_SCHEDULER === 'on')
   await queue.upsertJobScheduler('call-schedule', { every: 5 * 60_000 }, { name: 'call.schedule', data: {} });
 else await queue.removeJobScheduler('call-schedule');
 await queue.upsertJobScheduler(
+  'trials-nightly',
+  { pattern: '30 5 * * *', tz: 'America/New_York' },
+  { name: 'trials.match', data: {} },
+);
+await queue.upsertJobScheduler(
   'engine-nightly',
   { pattern: '0 5 * * *', tz: 'America/New_York' },
   { name: 'engine.run', data: {} },

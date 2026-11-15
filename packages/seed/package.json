@@ -16,6 +16,7 @@
     "@tomoni/core": "workspace:*",
     "@tomoni/db": "workspace:*",
     "@tomoni/medicines": "workspace:*",
+    "@tomoni/trials": "workspace:*",
     "drizzle-orm": "^0.45.4"
   },
   "devDependencies": {

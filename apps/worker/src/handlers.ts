@@ -7,6 +7,7 @@ import { audit } from '@tomoni/db';
 import { callKey, isDue, line, SCRIPT_VERSION, telephonyFromEnv, type Telephony } from '@tomoni/voice';
 import type { Queue } from 'bullmq';
 import { MockERx, MockPharmacyPortal, runAction } from '@tomoni/agent';
+import { matchTrials } from '@tomoni/trials';
 
 let bb: BlueButton | undefined;
 const blueButton = () => (bb ??= blueButtonFromEnv());
@@ -227,4 +228,7 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
     if ('retryInMs' in r) await deps.queue?.add('action.run', { actionId }, { delay: r.retryInMs });
     return r;
   },
+
+  /** Trial Bridge: match consented registry members to recruiting trials (idempotent). */
+  'trials.match': () => withScope('worker', systemScope('trials.match'), (db) => matchTrials(db, today())),
 };

@@ -243,6 +243,29 @@
       "saved": "Added. Tomoni is checking when it will run out.",
       "failed": "Couldn't add it: {message}",
       "photoLink": "See the photo"
+    },
+    "research": {
+      "link": "Research studies",
+      "title": "Research studies",
+      "separate": "This is separate from Tomoni's care. Saying no, or saying yes and leaving later, never changes anyone's care.",
+      "irb": "Approved by {irb} ({ref}), until {date}.",
+      "joined": "{name} is in the registry since {date}.",
+      "uses": "Uses agreed to:",
+      "use": {
+        "trialMatching": "Find medical studies that may fit",
+        "speechTask": "A 20-second speaking task on calls, for research only",
+        "pgxResearch": "Gene and medicine research"
+      },
+      "recording": "Calls may be recorded for research",
+      "withdraw": "Leave the registry",
+      "withdrawn": "Done. From now on nothing new is used for research.",
+      "cannot": "Only {name}, or their legal representative, can decide this.",
+      "choose": "Choose what {name} agrees to",
+      "signature": "Type your full name to sign",
+      "agree": "I agree",
+      "asRep": "You are signing as {name}'s legal representative.",
+      "joinedNow": "Thank you. You can leave at any time from this page.",
+      "none": "No study is open right now."
     }
   },
   "desk": {
@@ -371,7 +394,13 @@
     "days": "days",
     "noRefillsLeft": "No refills left on the current prescription.",
     "shortcutSelect": "Select or unselect",
-    "shortcutSignAll": "Sign all selected"
+    "shortcutSignAll": "Sign all selected",
+    "intros": {
+      "title": "Trial introductions",
+      "card": "{name} may fit {trial}. Discuss at the next visit?",
+      "introduced": "Introduced at visit",
+      "notInterested": "Not interested"
+    }
   },
   "ops": {
     "title": "Escalations",
@@ -388,7 +417,33 @@
     "title": "Research partner portal",
     "lead": "Counts here are de-identified and aggregated. Groups smaller than 11 people are never shown.",
     "emptyTitle": "No studies yet",
-    "emptyBody": "When a study is set up with Tomoni, feasibility counts and the referral funnel appear here."
+    "emptyBody": "When a study is set up with Tomoni, feasibility counts and the referral funnel appear here.",
+    "trials": "Your studies",
+    "funnel": "Referral funnel",
+    "hidden": "fewer than 11",
+    "feasibility": "Feasibility",
+    "feasibilityHelp": "How many consented registry members fit, by age band. Coarse criteria only; counts are rounded to 5 and groups under 11 are hidden.",
+    "conditions": "Conditions (any)",
+    "languages": "Languages (any)",
+    "inpatient": "Hospital stay within",
+    "anyTime": "Any time or none",
+    "days": "{n} days",
+    "count": "Count",
+    "total": "Total",
+    "usage": "Work billed",
+    "unit": "Service",
+    "units": "Units",
+    "amount": "Amount",
+    "month": "Month",
+    "noUsage": "No billable work yet.",
+    "stage": {
+      "matched": "Matched",
+      "prescreened": "Pre-screened",
+      "introduced": "Introduced by their doctor",
+      "consent_prep": "Consent prep call",
+      "referred": "Referred to site",
+      "randomized": "Randomized"
+    }
   },
   "admin": {
     "dataTitle": "Data files",
@@ -421,6 +476,23 @@
     "rows": "Rows",
     "dropped": "Set aside",
     "loaded": "Loaded",
-    "tooBig": "That file is over 2 MB. Split it and upload the parts."
+    "tooBig": "That file is over 2 MB. Split it and upload the parts.",
+    "research": {
+      "title": "Research matches",
+      "patient": "Patient",
+      "trial": "Study",
+      "stage": "Stage",
+      "move": "Move to {stage}",
+      "stages": {
+        "matched": "Matched",
+        "prescreened": "Pre-screened",
+        "introduced": "Introduced",
+        "consent_prep": "Consent prep",
+        "referred": "Referred to site",
+        "randomized": "Randomized",
+        "declined": "Declined",
+        "ineligible": "Not eligible"
+      }
+    }
   }
 }
