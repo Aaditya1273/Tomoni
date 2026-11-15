@@ -41,7 +41,7 @@ test.describe('sign-in and role routing (Phase 1 DoD)', () => {
     ['nurse.priya@demo.tomoni.test', 'desk', /\/desk$/],
     ['frontdesk@demo.tomoni.test', 'desk', /\/desk$/],
     ['ops.kiran@demo.tomoni.test', 'ops', /\/ops$/],
-    ['admin@demo.tomoni.test', 'desk', /\/desk$/],
+    ['admin@demo.tomoni.test', 'admin', /\/admin\/data$/],
   ];
   for (const [email, surface, url] of staff) {
     test(`${surface}: ${email} must pass MFA, then lands on ${surface}`, async ({ page }, info) => {
@@ -50,6 +50,8 @@ test.describe('sign-in and role routing (Phase 1 DoD)', () => {
       await snap(page, info, `mfa-${email.split('@')[0]}`);
       await passMfa(page, email);
       await expect(page).toHaveURL(url);
+      // A URL alone once let a blank admin page pass: the page must render its main content.
+      await expect(page.locator('main#main h1')).toBeVisible();
       await expectSandboxBadge(page);
       await expectAccessible(page);
       await snap(page, info, `${surface}-${email.split('@')[0]}`);

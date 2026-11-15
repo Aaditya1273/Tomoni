@@ -4,7 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { AuthShell } from '@tomoni/web-shared/root';
 import { getMe } from '@tomoni/web-shared/server';
 
-const HREF = { family: '/family', desk: '/desk', ops: '/ops', admin: '/desk' } as const;
+const HREF = { family: '/family', desk: '/desk', ops: '/ops', admin: '/admin/data' } as const;
 
 export default async function Choose() {
   const me = await getMe();

@@ -229,3 +229,4 @@ export const DataFiles = z.array(
     loadedAt: z.string(),
   }),
 );
+export type DataFiles = z.infer<typeof DataFiles>;
