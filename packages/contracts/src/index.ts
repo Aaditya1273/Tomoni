@@ -133,6 +133,7 @@ export const FamilyCard = z.object({
     z.object({
       id: z.uuid(),
       name: z.string(),
+      region: z.enum(['US', 'IN']),
       access: AccessStatus,
       medicare: z
         .object({ mode: z.enum(['sandbox', 'mock', 'production']), lastSyncedAt: z.string().nullable() })
@@ -159,7 +160,9 @@ export const WarningEvidence = z.object({
       fillDate: z.string(),
       daysSupply: z.number(),
       quantity: z.string(),
-      ndc: z.string(),
+      ndc: z.string().nullable(),
+      /** Family-entered fills: the prescription photo behind them. */
+      hasPhoto: z.boolean(),
       drug: z.string(),
       pharmacy: z.string().nullable(),
       source: z.enum(['bluebutton', 'mock', 'manual']),
@@ -437,4 +440,15 @@ export const AcceptInviteBody = z.strictObject({
   token: z.string().min(20).max(100),
   displayName: z.string().trim().min(1).max(100),
   password: z.string().min(12).max(256),
+});
+
+// ─── India bridge: family-entered medicines (Phase 4b) ──────────────────────
+export const AddMedicineBody = z.strictObject({
+  name: z.string().trim().min(2).max(120),
+  dosesPerDay: z.number().int().min(1).max(12),
+  quantity: z.number().int().min(1).max(1000),
+  filledOn: z.iso.date(),
+  refillsLeft: z.number().int().min(0).max(20).nullable(),
+  /** Base64 photo of the prescription or pharmacy bill, at most ~5 MB. */
+  photo: z.string().max(7_000_000).nullable(),
 });

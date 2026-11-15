@@ -41,13 +41,14 @@ type WarningRow = {
   evidence: Record<string, unknown>;
   label: string | null;
   fill_source: string | null;
+  fill_ref: string | null;
   status: 'open' | 'resolved';
   created_at: string | Date;
 };
 const WARNING_SQL = sql`
   SELECT w.id, w.patient_id, w.type, w.access_status, w.days_until_problem, w.problem_date::text,
          w.medication_id, w.source_kind, w.source_date::text, w.evidence, w.status, w.created_at,
-         v.label, f.source AS fill_source
+         v.label, f.source AS fill_source, f.source_ref AS fill_ref
     FROM care.warning w
     LEFT JOIN care.data_file_version v ON w.source_kind = 'data_file' AND v.id::text = w.source_ref
     LEFT JOIN care.fill f ON w.source_kind = 'fill' AND f.id::text = w.source_ref`;
@@ -65,7 +66,9 @@ const toItem = (r: WarningRow): WarningItem => ({
   source: {
     kind: r.source_kind,
     date: r.source_date,
-    label: r.label ?? `claims:${r.fill_source ?? 'unknown'}`,
+    label:
+      r.label ??
+      (r.fill_ref?.startsWith('family:') ? 'claims:family' : `claims:${r.fill_source ?? 'unknown'}`),
   },
   facts: WarningFacts.parse(r.evidence),
 });
@@ -73,8 +76,14 @@ const toItem = (r: WarningRow): WarningItem => ({
 /** Patients this request may see as family: its own household(s) or itself, never a staff view. */
 const familyPatients = (db: Db, s: RequestScope) =>
   db
-    .select({ id: schema.patient.id, name: schema.patient.name, preferredName: schema.patient.preferredName })
+    .select({
+      id: schema.patient.id,
+      name: schema.patient.name,
+      preferredName: schema.patient.preferredName,
+      region: schema.household.region,
+    })
     .from(schema.patient)
+    .innerJoin(schema.household, eq(schema.household.id, schema.patient.householdId))
     .where(
       or(
         s.householdIds.length ? inArray(schema.patient.householdId, s.householdIds) : sql`false`,
@@ -147,6 +156,7 @@ export const familyRoutes =
               return {
                 id: p.id,
                 name: p.preferredName ?? p.name,
+                region: p.region,
                 access: worst(ws.map((w) => w.access)),
                 medicare: link ? { mode: link.mode, lastSyncedAt: iso(link.lastSyncedAt) } : null,
                 medicines: meds
@@ -194,7 +204,8 @@ export const familyRoutes =
             ? (
                 await db.execute<z.infer<typeof WarningEvidence>['fills'][number]>(sql`
                   SELECT f.id, f.fill_date::text AS "fillDate", f.days_supply AS "daysSupply", f.quantity::text AS quantity,
-                         f.ndc, coalesce(m.display_name, d.name, f.ndc) AS drug, ph.name AS pharmacy,
+                         f.ndc, (f.evidence_ref IS NOT NULL) AS "hasPhoto",
+                         coalesce(m.display_name, d.name, f.ndc, '') AS drug, ph.name AS pharmacy,
                          f.source, f.source_ref AS "sourceRef"
                     FROM care.fill f
                     LEFT JOIN care.medication m ON m.id = f.medication_id

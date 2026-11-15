@@ -46,6 +46,7 @@ export const household = care.table('household', {
   id: uuid().primaryKey().defaultRandom(),
   displayName: text('display_name').notNull(),
   primaryLocale: text('primary_locale').notNull(),
+  region: text().$type<'US' | 'IN'>().notNull().default('US'),
   ...stamps,
 });
 
@@ -67,7 +68,7 @@ export const patient = care.table('patient', {
   tz: text().notNull(),
   callWindowStart: time('call_window_start').notNull().default('10:00'),
   callWindowEnd: time('call_window_end').notNull().default('12:00'),
-  medicareType: text('medicare_type').$type<'original' | 'advantage'>().notNull(),
+  medicareType: text('medicare_type').$type<'original' | 'advantage' | 'none'>().notNull(),
   status: text().$type<'active' | 'paused' | 'deceased' | 'left'>().notNull().default('active'),
   qmb: boolean().notNull().default(false),
   ...stamps,

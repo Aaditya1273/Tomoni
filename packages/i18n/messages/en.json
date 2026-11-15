@@ -105,7 +105,8 @@
       "claims": "From Medicare pharmacy claims, filled {date}",
       "claimsMock": "From sandbox pharmacy claims, filled {date}",
       "claimsManual": "Entered by the care team, filled {date}",
-      "file": "From {label}, effective {date}"
+      "file": "From {label}, effective {date}",
+      "claimsFamily": "Entered by the family, filled {date}"
     },
     "evidence": {
       "title": "Where this comes from",
@@ -226,6 +227,22 @@
       "copy": "Copy link",
       "copied": "Copied",
       "doctorDone": "Thanks. Tomoni will contact the doctor's office."
+    },
+    "addMed": {
+      "title": "Add a medicine",
+      "help": "From the prescription or the pharmacy bill. A photo helps the care team check it.",
+      "name": "Medicine and strength",
+      "namePlaceholder": "e.g. Telmisartan 40 mg",
+      "perDay": "Doses a day",
+      "quantity": "Tablets or doses bought",
+      "filledOn": "Bought on",
+      "refills": "Refills left on the prescription",
+      "refillsUnknown": "Leave empty if you don't know",
+      "photo": "Photo of the prescription or bill",
+      "save": "Add medicine",
+      "saved": "Added. Tomoni is checking when it will run out.",
+      "failed": "Couldn't add it: {message}",
+      "photoLink": "See the photo"
     }
   },
   "desk": {

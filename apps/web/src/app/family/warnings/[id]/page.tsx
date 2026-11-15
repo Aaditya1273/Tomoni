@@ -70,6 +70,14 @@ export default async function Evidence({ params }: { params: Promise<{ id: strin
                   <dt className="text-muted">{t('evidence.claimId')}</dt>
                   <dd className="break-all">{x.sourceRef}</dd>
                 </dl>
+                {x.hasPhoto && (
+                  <a
+                    href={`/api/fills/${x.id}/photo`}
+                    className="text-sm font-semibold text-neel underline underline-offset-2"
+                  >
+                    {t('addMed.photoLink')}
+                  </a>
+                )}
               </li>
             ))}
           </ul>

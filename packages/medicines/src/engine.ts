@@ -25,7 +25,7 @@ export interface FillFact {
   patientId: string;
   medicationId: string | null;
   rxcui: string | null;
-  ndc: string;
+  ndc: string | null;
   name: string;
   fillDate: string;
   daysSupply: number;
@@ -140,7 +140,8 @@ export function detectWarnings(f: Facts): WarningDraft[] {
   // ── Regimens: the latest fill of each medicine still being taken ────────────
   const latest = new Map<string, FillFact>();
   for (const x of f.fills) {
-    const k = `${x.patientId}|${x.rxcui ?? x.ndc}`;
+    // Claims name a drug by RxCUI or NDC; family-entered fills only by their medication.
+    const k = `${x.patientId}|${x.rxcui ?? x.ndc ?? x.medicationId}`;
     const prev = latest.get(k);
     if (!prev || x.fillDate > prev.fillDate || (x.fillDate === prev.fillDate && x.id > prev.id))
       latest.set(k, x);

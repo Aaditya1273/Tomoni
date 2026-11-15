@@ -22,16 +22,16 @@ export async function loadFacts(db: Db, today: string, patientIds?: string[]): P
   const only = patientIds ? sql`AND patient_id = ANY(${sql.param(patientIds)}::uuid[])` : sql``;
   const fills = await rowsOf<Facts['fills'][number]>(
     db,
-    sql`SELECT DISTINCT ON (f.patient_id, coalesce(f.rxcui, f.ndc))
+    sql`SELECT DISTINCT ON (f.patient_id, coalesce(f.rxcui, f.ndc, f.medication_id::text))
                f.id, f.patient_id AS "patientId", f.medication_id AS "medicationId", f.rxcui, f.ndc,
-               coalesce(m.display_name, d.name, f.ndc) AS name, f.fill_date::text AS "fillDate",
+               coalesce(m.display_name, d.name, f.ndc, '') AS name, f.fill_date::text AS "fillDate",
                f.days_supply AS "daysSupply", f.refills_remaining AS "refillsRemaining", f.pharmacy_id AS "pharmacyId"
           FROM care.fill f
           JOIN care.patient p ON p.id = f.patient_id AND p.status = 'active'
           LEFT JOIN care.medication m ON m.id = f.medication_id
           LEFT JOIN care.drug d ON d.ndc = f.ndc
          WHERE f.fill_date >= ${today}::date - 400 ${patientIds ? sql`AND f.patient_id = ANY(${sql.param(patientIds)}::uuid[])` : sql``}
-         ORDER BY f.patient_id, coalesce(f.rxcui, f.ndc), f.fill_date DESC, f.id DESC`,
+         ORDER BY f.patient_id, coalesce(f.rxcui, f.ndc, f.medication_id::text), f.fill_date DESC, f.id DESC`,
   );
   const rxcuis = [...new Set(fills.map((f) => f.rxcui).filter((r): r is string => !!r))];
   const year = Number(today.slice(0, 4));

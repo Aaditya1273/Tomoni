@@ -162,7 +162,7 @@ export const fill = care.table('fill', {
   id: uuid().primaryKey().defaultRandom(),
   patientId: uuid('patient_id').notNull(),
   medicationId: uuid('medication_id'),
-  ndc: text().notNull(),
+  ndc: text(),
   rxcui: text(),
   fillDate: date('fill_date').notNull(),
   daysSupply: integer('days_supply').notNull(),
@@ -173,6 +173,7 @@ export const fill = care.table('fill', {
   patientPaidCents: integer('patient_paid_cents'),
   source: text().$type<FillSource>().notNull(),
   sourceRef: text('source_ref').notNull(),
+  evidenceRef: text('evidence_ref'),
   ingestedAt: ts('ingested_at').notNull().defaultNow(),
 });
 

@@ -66,9 +66,11 @@ export async function warningWords(w: WarningItem, asOf: string) {
       : t(
           l === 'claims:bluebutton'
             ? 'source.claims'
-            : l === 'claims:manual'
-              ? 'source.claimsManual'
-              : 'source.claimsMock',
+            : l === 'claims:family'
+              ? 'source.claimsFamily'
+              : l === 'claims:manual'
+                ? 'source.claimsManual'
+                : 'source.claimsMock',
           {
             date: date(w.source.date),
           },

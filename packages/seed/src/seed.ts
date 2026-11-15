@@ -33,6 +33,12 @@ export const DEMO_LOGINS = [
     note: "Raj's daughter (Patel household)",
   },
   { email: 'raj@demo.tomoni.test', name: 'Raj Patel', role: 'patient', note: 'Raj himself' },
+  {
+    email: 'priya@demo.tomoni.test',
+    name: 'Priya Mehta',
+    role: 'family_member',
+    note: "Sunita's daughter in New Jersey (India bridge)",
+  },
   { email: 'dr.rao@demo.tomoni.test', name: 'Dr. Anil Rao', role: 'physician', note: 'Rao Family Medicine' },
   {
     email: 'nurse.priya@demo.tomoni.test',
@@ -295,6 +301,74 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
     );
   }
 
+  // ── India bridge (D-027): a mother in Ahmedabad, her daughter in New Jersey ──
+  const [indiaTeam] = await db
+    .insert(schema.practice)
+    .values({
+      name: 'Tomoni India Care Team',
+      tz: 'Asia/Kolkata',
+      phone: '+91-79-5555-0100',
+      address: 'Ahmedabad, GJ',
+      offshoreOpsAccess: true,
+    })
+    .returning();
+  const [mehta] = await db
+    .insert(schema.household)
+    .values({ displayName: 'Mehta', primaryLocale: 'gu', region: 'IN' })
+    .returning();
+  const [sunita] = await db
+    .insert(schema.patient)
+    .values({
+      practiceId: indiaTeam!.id,
+      householdId: mehta!.id,
+      name: 'Sunita Mehta',
+      preferredName: 'Sunita-ben',
+      dob: '1952-08-14',
+      birthYear: 1952,
+      phone: '+91-98250-55501',
+      phoneHash: hashFor.phone('+91-98250-55501'),
+      state: 'GJ',
+      locale: 'gu',
+      tz: 'Asia/Kolkata',
+      medicareType: 'none',
+    })
+    .returning();
+  const [priyaMember] = await db
+    .insert(schema.familyMember)
+    .values({ householdId: mehta!.id, displayName: 'Priya Mehta', relationship: 'daughter' })
+    .returning();
+  await db.insert(schema.contactConsent).values({
+    patientId: sunita!.id,
+    channel: 'voice',
+    phoneHash: hashFor.phone('+91-98250-55501'),
+    recordingAllowed: false,
+    givenByKind: 'patient',
+    givenAt: given,
+  });
+  // Entered by Priya from the pharmacy bills, the way the India bridge works (no Blue Button).
+  const ago = (n: number) =>
+    new Date(Date.parse(`${today()}T12:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
+  for (const [name, filled, qty, perDay, refills] of [
+    ['Telmisartan 40 mg', 21, 30, 1, 0],
+    ['Metformin 500 mg', 10, 60, 2, null],
+    ['Atorvastatin 10 mg', 40, 30, 1, 3],
+  ] as const) {
+    const [m] = await db
+      .insert(schema.medication)
+      .values({ patientId: sunita!.id, displayName: name, source: 'family' })
+      .returning();
+    await db.insert(schema.fill).values({
+      patientId: sunita!.id,
+      medicationId: m!.id,
+      fillDate: ago(filled),
+      daysSupply: Math.ceil(qty / perDay),
+      quantity: String(qty),
+      refillsRemaining: refills,
+      source: 'manual',
+      sourceRef: `family:seed-${name.split(' ')[0]!.toLowerCase()}`,
+    });
+  }
+
   // ── Staff and logins ───────────────────────────────────────────────────────
   for (const d of DEMO_LOGINS) {
     const [u] = await db
@@ -303,7 +377,7 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
       .returning();
     const scope =
       d.role === 'family_member'
-        ? { householdId: patel!.id }
+        ? { householdId: d.email.startsWith('priya') ? mehta!.id : patel!.id }
         : d.role === 'patient'
           ? { patientId: raj!.id }
           : d.role === 'ops_agent'
@@ -327,7 +401,7 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
       await db
         .update(schema.familyMember)
         .set({ userId: u!.id })
-        .where(sql`id = ${asha!.id}`);
+        .where(sql`id = ${d.email.startsWith('priya') ? priyaMember!.id : asha!.id}`);
   }
   for (const [p, name] of [
     [sunrise, 'Dr. Meena Iyer'],
@@ -345,7 +419,8 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
       state: schema.patient.state,
       medicareType: schema.patient.medicareType,
     })
-    .from(schema.patient);
+    .from(schema.patient)
+    .where(sql`mbi_hash IS NOT NULL`); // Medicare patients only: Part D plans and Blue Button are US-only
   const planOf = (p: (typeof people)[number]) =>
     p.id === raj!.id
       ? 'S9901-001-0'
@@ -382,7 +457,7 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
   const run = await withScope('worker', systemScope('seed'), (w) => runEngine(w, { today: asOf }));
 
   log(
-    `seeded 3 practices, ${people.length} patients, ${enrolled.length} APCM consents, ${DEMO_LOGINS.length} demo logins, ` +
+    `seeded 3 US practices with ${people.length} patients, 1 India household, ${enrolled.length} APCM consents, ${DEMO_LOGINS.length} demo logins, ` +
       `${fills} fills, ${run.open} open warnings (as of ${asOf})`,
   );
 }

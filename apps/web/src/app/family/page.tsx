@@ -7,6 +7,7 @@ import { PrefsMenu } from '@tomoni/web-shared';
 import { apiGet, getPrefs, getSandbox, requireSurface } from '@tomoni/web-shared/server';
 import { Greeting } from '@/components/Greeting';
 import { ConnectMedicare } from '@/components/family/ConnectMedicare';
+import { AddMedicine } from '@/components/family/AddMedicine';
 import { ActionControls } from '@/components/family/ActionControls';
 import { LiveRefresh } from '@/components/LiveRefresh';
 import { warningWords } from '@/components/family/WarningText';
@@ -60,19 +61,21 @@ export default async function FamilyToday({
             {t('asOf', { date: f.dateTime(day(asOf), { dateStyle: 'medium' }) })}
           </p>
         )}
-        {activity && patients.length > 0 && (
-          <p className="text-sm" data-week>
-            {t('week', {
-              calls: activity.week.calls,
-              caught: activity.week.problemsCaught,
-              tasks: activity.week.tasksDone,
-              minutes: activity.week.minutesSaved,
-            })}{' '}
-            <Link href="/family/activity" className="font-semibold text-neel underline underline-offset-2">
-              {t('activityLink')}
-            </Link>
-          </p>
-        )}
+        {activity &&
+          patients.length > 0 &&
+          activity.week.calls + activity.week.tasksDone + activity.week.problemsCaught > 0 && (
+            <p className="text-sm" data-week>
+              {t('week', {
+                calls: activity.week.calls,
+                caught: activity.week.problemsCaught,
+                tasks: activity.week.tasksDone,
+                minutes: activity.week.minutesSaved,
+              })}{' '}
+              <Link href="/family/activity" className="font-semibold text-neel underline underline-offset-2">
+                {t('activityLink')}
+              </Link>
+            </p>
+          )}
       </div>
 
       {notice && (
@@ -119,13 +122,15 @@ export default async function FamilyToday({
                         {words[i]!.when}
                       </StatusPill>
                       <p className="text-pretty">{words[i]!.sentence}</p>
-                      <ActionControls
-                        warningId={w.id}
-                        drug={w.drug ? drugName(w.drug) : ''}
-                        {...(p.actions.findLast((a) => a.warningId === w.id)
-                          ? { action: p.actions.findLast((a) => a.warningId === w.id)! }
-                          : {})}
-                      />
+                      {p.region === 'US' && (
+                        <ActionControls
+                          warningId={w.id}
+                          drug={w.drug ? drugName(w.drug) : ''}
+                          {...(p.actions.findLast((a) => a.warningId === w.id)
+                            ? { action: p.actions.findLast((a) => a.warningId === w.id)! }
+                            : {})}
+                        />
+                      )}
                       <p className="text-sm text-muted">
                         {words[i]!.source}.{' '}
                         <Link
@@ -170,7 +175,9 @@ export default async function FamilyToday({
                 )}
               </div>
 
-              {p.medicare ? (
+              {p.region === 'IN' ? (
+                <AddMedicine patientId={p.id} today={asOf} />
+              ) : p.medicare ? (
                 <p className="text-sm text-muted">
                   {p.medicare.mode === 'mock' ? t('medicareConnectedMock') : t('medicareConnected')}
                   {p.medicare.lastSyncedAt &&
