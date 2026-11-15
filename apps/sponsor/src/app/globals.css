@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+@import '@tomoni/ui/tokens.css';
+
+@source '../../../../packages/ui/src';
+@source '../../../../packages/web-shared/src';
