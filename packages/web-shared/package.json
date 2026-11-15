@@ -1,0 +1,37 @@
+{
+  "name": "@tomoni/web-shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./proxy": "./src/proxy.ts",
+    "./root": "./src/root.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@tomoni/contracts": "workspace:*",
+    "@tomoni/i18n": "workspace:*",
+    "@tomoni/ui": "workspace:*",
+    "lucide-react": "^1.73.0",
+    "next-intl": "^4.15.1",
+    "qrcode": "^1.5.4",
+    "radix-ui": "^1.8.1",
+    "server-only": "^0.0.1"
+  },
+  "peerDependencies": {
+    "next": "^16.4.6",
+    "react": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "next": "16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "~6.0.3"
+  }
+}
