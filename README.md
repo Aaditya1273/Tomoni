@@ -4,7 +4,7 @@
 
 The product and business plan: [`docs/PRODUCT.md`](docs/PRODUCT.md). How it gets big: [`docs/STRATEGY.md`](docs/STRATEGY.md). The build spec: [`docs/BUILD_PROMPT.md`](docs/BUILD_PROMPT.md).
 
-> **Status: Phases 1–3 complete** (foundation, medicines core, voice and agent). Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
+> **Status: Phases 1–4 complete** (foundation, medicines core, voice and agent, doctor desk and APCM). Synthetic data only. Real patient data stays off until the go-live checklist (Phase 7) is signed off. See [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Run it
 

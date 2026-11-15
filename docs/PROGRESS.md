@@ -9,7 +9,13 @@
 - **Phase 3 (Voice and agent): done** on 2026-11-15. Definition of Done:
   - A simulated call with a symptom puts a nurse flag on the desk live in **92 ms** (budget 5 s; e2e `calls.spec.ts`).
   - The emergency-phrase tests pass in every shipped language: en, hi, gu, ta, pa and bn, native script and Latin spelling (`packages/core/test/safety.test.ts`).
-- **Next: Phase 4 (Doctor desk and APCM).**
+- **Phase 4 (Doctor desk and APCM): done** on 2026-11-15. Definition of Done: the "one week in Tomoni" scenario runs end to end in Playwright (`e2e/one-week.spec.ts`):
+  - The daily call ends with "yes, help me", the doctor signs, and the family sees it done.
+  - A symptom is called back and resolved.
+  - A sibling joins.
+  - The care plan is signed and the month is billable.
+  - Asha reads the week.
+- **Next: Phase 4b (India bridge), then Phase 5 (Research core).** See STRATEGY.md.
 
 ## Test inventory (all passing)
 
@@ -17,7 +23,7 @@
 | --- | --- | --- |
 | `packages/db` | 59 | RLS for 9 roles on every table, including medicines, fills, warnings, Blue Button links, calls, nurse flags and actions; the disclosure and verification CHECKs; staff-only writes, admin-only uploads, household-only Medicare connection; audit chain; field encryption; no finder's-fee columns |
 | `packages/medicines` | 28 | **Engine:** scorer boundaries; late refill and run-out; tier, removal, premium and price changes across years; PBM lists; shortages; closures; stable dedupe keys. **Loaders:** idempotent, bad CMS rows dropped and counted. **Mapping:** sandbox-shaped EOB, synthetic EOBs through the same mapper. **Ingestion:** idempotent. **Engine runs:** upsert, resolve and audit. **PBM:** mapping with drop reasons. **Real adapter:** PKCE, production refused while real data is off, never follows links off the CMS host |
-| `apps/api` | 46 | Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
+| `apps/api` | 59 | Phase 4: desk timeline per practice, draft and sign, APCM build, CSV export with formula-injection neutralized, mark billed, report, unified queue; family activity without caller words, streak with shield, single-use expiring invites. Earlier: Phase 1 auth suite; simulator (disclosure, flags, outbox, encrypted transcript, no names in call state, consent required, absent in production); desk flags per practice, acknowledge and resolve; SSE scoped per practice; Twilio webhooks (signature, disclosure in the patient's language, spoken emergency, voicemail with no PHI, TwiML escaping); actions (help, physician-only signing, household isolation, ops offshore gating). Phase 2: family card (own household only, staff refused, reads audited); evidence (claims, or both file versions with hashes; 404 across households); Blue Button connect/callback (single-use state, works without the session cookie, sync queued); admin PBM preview and upload |
 | `packages/ui` | 26 | Every token pair meets WCAG contrast in both themes |
 | `packages/i18n` | 16 | Complete locales match English keys; placeholders preserved |
 | `packages/core` | 8 | Scope building; MFA and session policy per role |
@@ -25,7 +31,8 @@
 | `packages/core` safety | 92 | Emergency, self-harm, symptom and medication-change phrases in six languages and two scripts; statements that should not flag; denials (downgraded, never dropped; self-harm never softened); zero-width, look-alike, accent, punctuation and nukta tricks; injection-shaped caller text |
 | `packages/voice` | 17 (+9 live eval, opt-in) | Disclosure first; normal call slots; one re-ask; emergency and self-harm end the call; a symptom skips every admin step; the LLM never sees text the matcher fired on; the LLM can add a flag, never remove one; scheduler time zones, DST, quiet hours; Twilio signature against Twilio's documented example |
 | `packages/agent` | 13 | Closed registry; approval classes; no path skips approval or verification; strict inputs; the database rejects approvals from the wrong role or practice; confirm → do → verify recorded step by step; backoff then ops handoff; hostile pharmacy text stays untrusted data; plan ranking unaffected by any commission |
-| `apps/web` e2e | 48 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
+| `packages/care` | 7 | Chronic conditions from ICD-10; G0556/G0557/G0558; months excluded with reasons; only a physician of the practice signs; signed plans immutable; billed months frozen |
+| `apps/web` e2e | 55 | Phase 1 suite, plus: family card wording, order and sources; fill and file evidence; Hindi card; Medicare connect (sandbox); admin maps a PBM CSV and the worker puts the change on Raj's card |
 
 ## Log
 
@@ -41,6 +48,9 @@
 | 2026-11-15 | 3.4–3.5 Live desk | Simulator, nurse flags, outbox relay, SSE, desk queue | API, e2e (92 ms) | Simulator instead of a phone |
 | 2026-11-15 | 3.6 Scheduler | Time zones and quiet hours, Twilio adapter and signed webhooks, family emergency texts | Unit, API | `MockTelephony` |
 | 2026-11-15 | 3.7 Agent | Skill registry, approvals (DB-enforced), runner with retries and ops handoff, neutral plan ranking, family/desk/ops UI | Unit, DB, API, e2e | Pharmacy portal and e-prescribing |
+| 2026-11-15 | 4.1 APCM | Care plans (physician-only signing, immutable), APCM month records with evidence, CSV export, practice report | Unit, DB, API, e2e | — |
+| 2026-11-15 | 4.2 Desk queue | Keyboard-first queue (j/k/s/x/Shift+S) with evidence pane | API, e2e | — |
+| 2026-11-15 | 4.3–4.4 Family | Activity log, streaks, invites; one-week scenario | API, e2e | — |
 | 2026-11-15 | 2.4 Family card | Card with Access Scores and sourced warnings, evidence page, admin data page; English + Hindi | API, e2e + axe | — |
 
 ## Found and fixed by the tests
@@ -57,6 +67,9 @@
 - **Twilio webhook writes never committed.** The handler returned the Fastify reply (a thenable) from inside the transaction. The TwiML is now built inside the transaction and sent after commit.
 
 ## Known gaps
+- **Times on family pages show in UTC.** Calendar dates are right; time-of-day needs the viewer's time zone.
+- **Care-plan goals are templates** for common conditions; the physician edits by drafting a new version (no inline editor yet).
+- **APCM rates in the report are national**; local adjustments (GPCI) are not applied.
 - **Live LLM eval not run.** No Anthropic credentials on this machine. Run `pnpm --filter @tomoni/voice eval` with credentials before turning on `TOMONI_ADAPTER_LLM=real`.
 - **Real telephony is untested against Twilio.** The adapter and signed webhooks are built and tested against Twilio's documented signature example only. Speech-to-text uses Twilio's built-in recognition until the vendor decision (D-007).
 - **Call scripts for gu, ta, pa and bn** fall back to English (D-025). All new Hindi needs native review.
@@ -74,4 +87,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Phase 4, slice 4.1: the keyboard-first desk queue (renewals, prior authorizations, exceptions, flags) with evidence panes and bulk sign.
+Phase 4b, slice 1: a region per household and medicines without Blue Button (family-entered, prescription photo as evidence).
