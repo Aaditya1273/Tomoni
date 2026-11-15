@@ -1,5 +1,5 @@
 import { closePools, ensureDatabase, migrate, reset } from '@tomoni/db';
-import { seed } from '@tomoni/db/seed';
+import { seed } from '@tomoni/seed';
 import { resetMfaState } from './helpers';
 
 export default async function globalSetup() {

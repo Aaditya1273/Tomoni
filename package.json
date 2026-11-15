@@ -16,7 +16,7 @@
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "db:migrate": "pnpm --filter @tomoni/db migrate",
-    "db:seed": "pnpm --filter @tomoni/db seed",
+    "db:seed": "pnpm --filter @tomoni/seed seed",
     "db:reset": "pnpm --filter @tomoni/db reset",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

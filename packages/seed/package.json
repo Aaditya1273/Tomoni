@@ -1,0 +1,23 @@
+{
+  "name": "@tomoni/seed",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/seed.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "lint": "eslint .",
+    "seed": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
+    "@tomoni/core": "workspace:*",
+    "@tomoni/db": "workspace:*",
+    "@tomoni/medicines": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

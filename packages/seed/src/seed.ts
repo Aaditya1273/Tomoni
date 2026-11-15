@@ -1,13 +1,26 @@
 import { sql } from 'drizzle-orm';
 import { hash } from '@node-rs/argon2';
-import { hashFor, ownerDb, realDataEnabled, schema } from '../src';
+import { hashFor, ownerDb, realDataEnabled, schema, withScope } from '@tomoni/db';
+import { systemScope } from '@tomoni/core';
+import {
+  blueButtonFromEnv,
+  ingestBundles,
+  KOKILA_MBI,
+  loadSamples,
+  MockBlueButton,
+  mockBeneficiaryId,
+  RAJ_MBI,
+  runEngine,
+  today,
+} from '@tomoni/medicines';
 import { POOLS, type Lang } from './names';
 
 /**
  * Deterministic synthetic world (DATA_MODEL "Synthetic seed", DECISIONS D-012).
  * 3 practices, 500 patients: 20 scripted households (named families with logins) + single-patient
  * households for the rest. Same output on every machine: seeded PRNG, fixed reference date.
- * Medicines, fills and warnings arrive with Phase 2.
+ * Medicines arrive the way they would in production: through Blue Button (the mock adapter),
+ * then the warning engine runs over everyone.
  */
 export const DEMO_PASSWORD = process.env.TOMONI_DEMO_PASSWORD ?? 'tomoni-demo-2026';
 export const SPONSOR_DEMO_ID = '019a0000-0000-7000-8000-00000000a001';
@@ -111,12 +124,16 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
 
   let phoneN = 1000;
   const phone = () => `201-555-${String(phoneN++).padStart(4, '0')}`;
+  // Synthetic MBIs start with 0, which no real MBI does (see medicines/bluebutton/scenarios.ts).
+  let mbiN = 0;
+  const nextMbi = () => `0TM${String(mbiN++).padStart(8, '0')}`;
   const patientRow = (
     practiceId: string,
     householdId: string,
     name: string,
     locale: Lang,
     birthYear: number,
+    mbi = nextMbi(),
   ) => {
     const ph = phone();
     const month = 1 + Math.floor(rnd() * 12);
@@ -124,6 +141,8 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
     return {
       practiceId,
       householdId,
+      mbi,
+      mbiHash: hashFor.mbi(mbi),
       name,
       dob: `${birthYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       birthYear,
@@ -144,12 +163,15 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
   const [raj] = await db
     .insert(schema.patient)
     .values({
-      ...patientRow(rao.id, patel!.id, 'Raj Patel', 'gu', 1953),
+      ...patientRow(rao.id, patel!.id, 'Raj Patel', 'gu', 1953, RAJ_MBI),
       preferredName: 'Raj-bhai',
       medicareType: 'original',
     })
     .returning();
-  await db.insert(schema.patient).values(patientRow(rao.id, patel!.id, 'Kokila Patel', 'gu', 1956));
+  const [kokila] = await db
+    .insert(schema.patient)
+    .values(patientRow(rao.id, patel!.id, 'Kokila Patel', 'gu', 1956, KOKILA_MBI))
+    .returning();
   const [asha] = await db
     .insert(schema.familyMember)
     .values({
@@ -314,9 +336,55 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
     await db.insert(schema.clinician).values({ practiceId: p.id, kind: 'physician', displayName: name });
   }
 
-  const [{ n }] = (await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM care.patient`))
-    .rows as [{ n: number }];
+  // ── Coverage: public files, each patient's Part D plan (same plan both years) ─
+  await loadSamples(db);
+  const people = await db
+    .select({
+      id: schema.patient.id,
+      mbi: schema.patient.mbi,
+      state: schema.patient.state,
+      medicareType: schema.patient.medicareType,
+    })
+    .from(schema.patient);
+  const planOf = (p: (typeof people)[number]) =>
+    p.id === raj!.id
+      ? 'S9901-001-0'
+      : p.id === kokila!.id
+        ? 'S9902-001-0'
+        : p.medicareType === 'advantage'
+          ? 'H9903-002-0'
+          : p.state === 'IL'
+            ? 'S9904-001-0'
+            : pick(['S9901-001-0', 'S9902-001-0']);
+  const plans = people.flatMap((p) => {
+    const [contractId, planId, segmentId] = planOf(p).split('-') as [string, string, string];
+    return [2026, 2027].map((year) => ({ patientId: p.id, year, contractId, planId, segmentId }));
+  });
+  for (let i = 0; i < plans.length; i += 500)
+    await db.insert(schema.patientPlan).values(plans.slice(i, i + 500));
+
+  // ── Medicines through Blue Button (mock), then the warning engine ──────────
+  const bb = blueButtonFromEnv({ ...process.env, TOMONI_ADAPTER_BLUEBUTTON: 'mock' });
+  if (!(bb instanceof MockBlueButton)) throw new Error('seed uses the mock Blue Button only');
+  const asOf = today();
+  let fills = 0;
+  for (const p of people) {
+    const tokens = await bb.exchange({ mockBeneficiaryId: mockBeneficiaryId(p.mbi!) });
+    await db
+      .insert(schema.bluebuttonLink)
+      .values({
+        patientId: p.id,
+        mode: 'mock',
+        fhirPatientId: tokens.fhirPatientId,
+        scope: tokens.scope,
+        lastSyncedAt: new Date(),
+      });
+    fills += (await ingestBundles(db, p.id, await bb.fetchBundles(tokens, asOf), 'mock')).fills;
+  }
+  const run = await withScope('worker', systemScope('seed'), (w) => runEngine(w, { today: asOf }));
+
   log(
-    `seeded 3 practices, ${n} patients, ${enrolled.length} APCM consents, ${DEMO_LOGINS.length} demo logins`,
+    `seeded 3 practices, ${people.length} patients, ${enrolled.length} APCM consents, ${DEMO_LOGINS.length} demo logins, ` +
+      `${fills} fills, ${run.open} open warnings (as of ${asOf})`,
   );
 }
