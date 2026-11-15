@@ -1,0 +1,5 @@
+{
+  "common": { "language": "ভাষা", "signOut": "সাইন আউট করুন" },
+  "surfaces": { "family": "পরিবার" },
+  "family": { "navToday": "আজ" }
+}

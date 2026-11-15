@@ -1,0 +1,5 @@
+{
+  "common": { "language": "மொழி", "signOut": "வெளியேறு" },
+  "surfaces": { "family": "குடும்பம்" },
+  "family": { "navToday": "இன்று" }
+}

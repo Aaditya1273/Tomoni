@@ -1,0 +1,80 @@
+{
+  "common": {
+    "sandboxLabel": "Sandbox",
+    "sandboxShort": "Test data only.",
+    "sandboxDetail": "Test data only. Mocked: {mocks}.",
+    "sandboxNoMocks": "Test data only. Real data is switched off.",
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "Match device",
+    "largeText": "Larger text",
+    "signOut": "Sign out",
+    "skipToContent": "Skip to main content",
+    "offline": "You're offline. Changes will be sent when you reconnect.",
+    "errorGeneric": "Something went wrong on our side. Try again in a moment.",
+    "loading": "Loading"
+  },
+  "auth": {
+    "signInTitle": "Sign in to Tomoni",
+    "signInLead": "For families, care teams and research partners.",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in",
+    "badCredentials": "That email and password don't match, or the account is locked for 15 minutes after too many tries.",
+    "rateLimited": "Too many tries. Wait a minute, then sign in again.",
+    "mfaVerifyTitle": "Enter your 6-digit code",
+    "mfaVerifyLead": "Open your authenticator app and type the code shown for Tomoni.",
+    "mfaEnrollTitle": "Set up two-step sign-in",
+    "mfaEnrollLead": "Care teams and partners need a second step, because you can see patient information. Scan this code with an authenticator app, then type the 6 digits it shows.",
+    "mfaManual": "Can't scan? Enter this key instead:",
+    "code": "6-digit code",
+    "verify": "Verify",
+    "badCode": "That code didn't match. Codes change every 30 seconds; try the newest one.",
+    "chooseSurface": "Where do you want to go?",
+    "wrongApp": "This account is for the research partner portal. Sign in there instead.",
+    "notPartner": "This portal is for research partners only. Families and care teams sign in to the main Tomoni app."
+  },
+  "surfaces": {
+    "family": "Family",
+    "desk": "Care desk",
+    "ops": "Operations",
+    "sponsor": "Research partner portal",
+    "admin": "Admin"
+  },
+  "family": {
+    "greetingMorning": "Good morning, {name}",
+    "greetingAfternoon": "Good afternoon, {name}",
+    "greetingEvening": "Good evening, {name}",
+    "emptyTitle": "Your family card starts here",
+    "emptyBody": "Once Tomoni has checked your family's medicines, each person's status shows here every morning, with anything that needs you at the top.",
+    "navToday": "Today",
+    "navMedicines": "Medicines",
+    "navActivity": "Activity",
+    "navFamily": "Family"
+  },
+  "desk": {
+    "queueTitle": "Queue",
+    "queueEmptyTitle": "Nothing waiting",
+    "queueEmptyBody": "Refill renewals, approvals and nurse flags appear here, most urgent first.",
+    "shortcuts": "Keyboard shortcuts",
+    "shortcutNext": "Next item",
+    "shortcutPrev": "Previous item",
+    "shortcutSign": "Sign",
+    "shortcutHelp": "Show shortcuts",
+    "detailEmpty": "Pick an item from the queue. Its evidence shows here, so you never have to look anything up."
+  },
+  "ops": {
+    "title": "Escalations",
+    "emptyTitle": "No open escalations",
+    "emptyBody": "Calls the assistant hands over, and jobs that need a person, appear here."
+  },
+  "sponsor": {
+    "title": "Research partner portal",
+    "lead": "Counts here are de-identified and aggregated. Groups smaller than 11 people are never shown.",
+    "emptyTitle": "No studies yet",
+    "emptyBody": "When a study is set up with Tomoni, feasibility counts and the referral funnel appear here."
+  }
+}
