@@ -4,7 +4,7 @@
  * English and Hindi are complete; the other shipped locales fall back to English per line until
  * native speakers write them (PROGRESS). Bump SCRIPT_VERSION on any wording change.
  */
-export const SCRIPT_VERSION = 'daily-call.v1';
+export const SCRIPT_VERSION = 'daily-call.v2';
 
 export type ScriptLocale = 'en' | 'hi';
 export type UpcomingKind =
@@ -32,6 +32,8 @@ interface Script {
   flagged: string;
   emergency: string;
   selfHarm: string;
+  speechTask: string;
+  speechThanks: string;
   closing: string;
   voicemail: string;
   familyEmergency: string;
@@ -57,6 +59,9 @@ const en: Script = {
     'This sounds like an emergency. Please hang up and call 911 now. I am alerting {practice} and your family right away.',
   selfHarm:
     "I'm really sorry you're feeling this way. Please call or text 988 now to talk to someone right away. If you are in danger, call 911. I am letting {practice} and your family know.",
+  speechTask:
+    "One more thing, for the research study you joined. It is not part of your care, and it's fine to say skip. For about 20 seconds, please tell me what you did yesterday.",
+  speechThanks: 'Thank you, that helps the study.',
   closing: 'Thank you, {name}. Tomoni will call again tomorrow. Goodbye.',
   // No name or health detail: a voicemail may be heard by anyone.
   voicemail:
@@ -94,6 +99,9 @@ const hi: Script = {
     'यह इमरजेंसी लग रही है। कृपया फ़ोन रखें और अभी 911 पर कॉल करें। मैं {practice} और आपके परिवार को तुरंत बता रही हूँ।',
   selfHarm:
     'मुझे बहुत दुख है कि आप ऐसा महसूस कर रहे हैं। किसी से अभी बात करने के लिए कृपया 988 पर कॉल या मैसेज करें। अगर आप ख़तरे में हैं, तो 911 पर कॉल करें। मैं {practice} और आपके परिवार को बता रही हूँ।',
+  speechTask:
+    'एक और बात, उस रिसर्च स्टडी के लिए जिसमें आप जुड़े हैं। यह आपके इलाज का हिस्सा नहीं है, और आप "छोड़ो" कह सकते हैं। लगभग 20 सेकंड के लिए, कृपया बताइए कि आपने कल क्या किया।',
+  speechThanks: 'धन्यवाद, इससे स्टडी को मदद मिलती है।',
   closing: 'धन्यवाद, {name}। Tomoni कल फिर कॉल करेगा। नमस्ते।',
   voicemail: 'मैं Tomoni हूँ, आपके डॉक्टर के दफ़्तर से एक स्वचालित सहायक, रोज़ की बातचीत के लिए। हम कल फिर कॉल करेंगे।',
   familyEmergency:

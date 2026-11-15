@@ -8,6 +8,7 @@ import { callKey, isDue, line, SCRIPT_VERSION, telephonyFromEnv, type Telephony 
 import type { Queue } from 'bullmq';
 import { MockERx, MockPharmacyPortal, runAction } from '@tomoni/agent';
 import { matchTrials } from '@tomoni/trials';
+import { extractPending, featureServiceFromEnv, labelOutcomes } from '@tomoni/research';
 
 let bb: BlueButton | undefined;
 const blueButton = () => (bb ??= blueButtonFromEnv());
@@ -231,4 +232,11 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
 
   /** Trial Bridge: match consented registry members to recruiting trials (idempotent). */
   'trials.match': () => withScope('worker', systemScope('trials.match'), (db) => matchTrials(db, today())),
+
+  // Voice Lab: features for new samples, then hospital-stay labels. RLS shows consented rows only.
+  'research.nightly': () =>
+    withScope('worker', systemScope('research.nightly'), async (db) => ({
+      ...(await extractPending(db, featureServiceFromEnv())),
+      ...(await labelOutcomes(db)),
+    })),
 };

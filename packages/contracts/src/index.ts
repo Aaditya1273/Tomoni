@@ -65,6 +65,7 @@ export const JobPayloads = {
   'notify.family': z.strictObject({ flagId: z.uuid() }),
   'action.run': z.strictObject({ actionId: z.uuid() }),
   'trials.match': z.strictObject({}),
+  'research.nightly': z.strictObject({}),
 } as const;
 export type JobName = keyof typeof JobPayloads;
 export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;

@@ -48,6 +48,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: python3 apps/ml/features.py
 
       - name: Storybook builds
         run: pnpm --filter @tomoni/ui build

@@ -19,11 +19,11 @@ const xml = (s: string) =>
     (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]!,
   );
 
-function twiml(o: { say: string[]; locale: string; gatherUrl?: string }) {
+function twiml(o: { say: string[]; locale: string; gatherUrl?: string; long?: boolean }) {
   const lang = LANG[o.locale] ?? 'en-US';
   const says = o.say.map((s) => `<Say language="${lang}">${xml(s)}</Say>`).join('');
   const body = o.gatherUrl
-    ? `<Gather input="speech" language="${lang}" speechTimeout="auto" action="${xml(o.gatherUrl)}" method="POST">${says}</Gather><Redirect method="POST">${xml(o.gatherUrl)}</Redirect>`
+    ? `<Gather input="speech" language="${lang}" speechTimeout="${o.long ? 3 : 'auto'}" action="${xml(o.gatherUrl)}" method="POST">${says}</Gather><Redirect method="POST">${xml(o.gatherUrl)}</Redirect>`
     : `${says}<Hangup/>`;
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`;
 }
@@ -102,7 +102,13 @@ export const twilioRoutes =
           if (!said) return twiml({ say: [line(locale, 'unclear')], locale, gatherUrl: turnUrl(callId) });
           try {
             const r = await callTurn(db, callId, said, deps.llm, 'voice');
-            return twiml({ say: r.say, locale, ...(r.ended ? {} : { gatherUrl: turnUrl(callId) }) });
+            // The research task is a 20-second narration: wait out short pauses instead of cutting in.
+            return twiml({
+              say: r.say,
+              locale,
+              long: r.speechTask,
+              ...(r.ended ? {} : { gatherUrl: turnUrl(callId) }),
+            });
           } catch (e) {
             if (e instanceof CallError) return twiml({ say: [], locale });
             throw e;

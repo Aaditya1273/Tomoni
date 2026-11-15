@@ -126,3 +126,55 @@ describe('rule 2.1: safety leaves the task', () => {
     await expect(takeTurn(state, ctx(), 'hello', llm)).rejects.toThrow(/ended/);
   });
 });
+
+describe('rule 2.8: the research speech task', () => {
+  const spy = (): ConversationLLM & { calls: string[] } => {
+    const calls: string[] = [];
+    return {
+      promptVersion: llm.promptVersion,
+      calls,
+      fill: (s, u, l) => (calls.push(u), (llm as ConversationLLM).fill(s, u, l)),
+    };
+  };
+  const narration = 'Yesterday I walked to the temple and then cooked dal with my granddaughter';
+
+  it('is offered only with consent, after a clean call, and the LLM never hears it', async () => {
+    const m = spy();
+    const { state, said } = await run(
+      ctx({ speechTask: true }),
+      ["I'm fine", 'yes', 'no thanks', narration],
+      m,
+    );
+    expect(said.some((s) => s.startsWith('One more thing, for the research study'))).toBe(true);
+    expect(state).toMatchObject({
+      step: 'ended',
+      outcome: 'completed',
+      slots: { speech: { status: 'done' } },
+    });
+    expect(m.calls).not.toContain(narration);
+    expect(state.turns.map((t) => t.text)).not.toContain(narration);
+    expect(state.turns.map((t) => t.text)).toContain('[research speech task]');
+
+    const without = await run(ctx(), ["I'm fine", 'yes', 'no thanks']);
+    expect(without.state.step).toBe('ended');
+    expect(without.state.slots.speech).toBeUndefined();
+  });
+
+  it('can be skipped, and is never offered after a flag', async () => {
+    const skipped = await run(ctx({ speechTask: true }), ["I'm fine", 'yes', 'no thanks', 'skip']);
+    expect(skipped.state.slots.speech).toMatchObject({ status: 'skipped', ms: 0 });
+    const flagged = await run(ctx({ speechTask: true }), ['I have chest pain and feel dizzy']);
+    expect(flagged.state.slots.speech).toBeUndefined();
+  });
+
+  it('safety still comes first inside the task', async () => {
+    const { state, flags } = await run(ctx({ speechTask: true }), [
+      "I'm fine",
+      'yes',
+      'no thanks',
+      'I want to end my life',
+    ]);
+    expect(flags[0]?.class).toBe('self_harm');
+    expect(state.outcome).toBe('escalated');
+  });
+});

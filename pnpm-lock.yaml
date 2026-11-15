@@ -248,6 +248,9 @@ importers:
       '@tomoni/medicines':
         specifier: workspace:*
         version: link:../../packages/medicines
+      '@tomoni/research':
+        specifier: workspace:*
+        version: link:../../packages/research
       '@tomoni/trials':
         specifier: workspace:*
         version: link:../../packages/trials
@@ -384,6 +387,28 @@ importers:
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/medicines:
+    dependencies:
+      '@tomoni/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tomoni/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/research:
     dependencies:
       '@tomoni/core':
         specifier: workspace:*

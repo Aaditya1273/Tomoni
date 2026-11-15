@@ -53,8 +53,8 @@ async function contextFor(
     );
   // Rule 2.10: Tomoni calls only people who agreed to be called.
   if (!consent) throw new CallError('no_contact_consent', 'This patient has not agreed to calls.');
-  const { rows } = await db.execute<{ practice: string; doctor: string | null }>(sql`
-    SELECT pr.name AS practice,
+  const { rows } = await db.execute<{ practice: string; doctor: string | null; speech: boolean }>(sql`
+    SELECT pr.name AS practice, research.has_active_consent(${patientId}, 'speech_task') AS speech,
            (SELECT display_name FROM care.clinician c WHERE c.practice_id = pr.id AND c.kind = 'physician'
              ORDER BY created_at LIMIT 1) AS doctor
       FROM care.practice pr WHERE pr.id = ${p.practiceId}`);
@@ -72,6 +72,7 @@ async function contextFor(
     locale: p.locale,
     recordingAllowed: consent.recordingAllowed,
     upcoming,
+    speechTask: rows[0]?.speech === true,
     practiceId: p.practiceId,
     householdId: p.householdId,
   };
@@ -148,6 +149,14 @@ export async function callTurn(
     );
 
   const ended = r.state.step === 'ended';
+  const speech = r.state.slots.speech;
+  // Research (rule 2.8, D-009): the sample goes to the research schema under a pseudonym, and
+  // its seconds are kept out of care time. Null when consent is gone by now: nothing is stored.
+  if (speech?.status === 'done' && !prev.slots.speech?.status)
+    await db.execute(
+      sql`SELECT research.record_speech_sample(${callId}, 'describe_yesterday', 1, ${speech.ms ?? 0})`,
+    );
+  const researchSeconds = Math.round((speech?.ms ?? 0) / 1000);
   const { turns: _t, step, outcome, ...rest } = r.state;
   await db
     .update(schema.call)
@@ -159,7 +168,8 @@ export async function callTurn(
       ...(ended
         ? {
             endedAt: new Date(),
-            careSeconds: sql`greatest(0, extract(epoch FROM now() - started_at))::int`,
+            careSeconds: sql`greatest(0, extract(epoch FROM now() - started_at)::int - ${researchSeconds})`,
+            researchSeconds,
           }
         : {}),
     })
@@ -174,7 +184,15 @@ export async function callTurn(
   });
   const before = new Set(prev.slots.helpWanted ?? []);
   const helpWanted = (r.state.slots.helpWanted ?? []).filter((w) => !before.has(w));
-  return { callId, say: r.say, ended, outcome: ended ? outcome : null, flags, helpWanted };
+  return {
+    callId,
+    say: r.say,
+    ended,
+    outcome: ended ? outcome : null,
+    flags,
+    helpWanted,
+    speechTask: step === 'speech_task',
+  };
 }
 
 /** A nurse flag, its live event (no PHI in the payload) and its audit row, in one transaction. */

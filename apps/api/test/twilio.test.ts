@@ -38,7 +38,7 @@ async function scheduledCall() {
   });
   const [c] = await db
     .insert(schema.call)
-    .values({ patientId: p!.id, channel: 'voice', locale: 'hi', scriptVersion: 'daily-call.v1' })
+    .values({ patientId: p!.id, channel: 'voice', locale: 'hi', scriptVersion: 'daily-call.v2' })
     .returning();
   return c!.id;
 }

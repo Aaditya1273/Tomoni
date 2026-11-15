@@ -1,7 +1,10 @@
 /**
  * The daily call as a state machine (BUILD_PROMPT §5.4, rules 2.1 and 2.10).
  *
- *   disclosure+wellbeing → meds → upcoming × n → closing → ended
+ *   disclosure+wellbeing → meds → upcoming × n → [speech_task] → closing → ended
+ *
+ * The speech task is research (rule 2.8): offered only with active speech-task consent, only on a
+ * call that ended without a flag, never read by the LLM, and kept out of the care transcript.
  *
  * Every caller utterance goes through the safety matcher BEFORE the LLM sees it. A hit leaves
  * the current task for good: an emergency or self-harm ends the call with the emergency script;
@@ -13,7 +16,7 @@ import { matchSafety, topClass, type SafetyClass, type SafetyHit } from '@tomoni
 import { UNCLEAR, type ConversationLLM, type SlotStep } from './llm';
 import { itemLine, line, type UpcomingKind } from './scripts';
 
-export type Step = 'wellbeing' | 'meds' | 'upcoming' | 'ended';
+export type Step = 'wellbeing' | 'meds' | 'upcoming' | 'speech_task' | 'ended';
 export type Outcome = 'completed' | 'escalated';
 
 export interface CallContext {
@@ -23,6 +26,8 @@ export interface CallContext {
   locale: string;
   recordingAllowed: boolean;
   upcoming: { kind: UpcomingKind; drug: string; warningId: string }[];
+  /** Active research consent with the speech-task scope, checked live on every turn. */
+  speechTask?: boolean;
 }
 
 export interface Turn {
@@ -48,6 +53,8 @@ export interface CallState {
     medsTaken?: string;
     helpWanted?: string[]; // warning ids the patient asked Tomoni to help with
     declined?: string[];
+    /** Research only: when the task was offered, and how it went. Never the words. */
+    speech?: { offeredAt: string; status?: 'done' | 'skipped'; ms?: number };
   };
   turns: Turn[];
   outcome: Outcome | null;
@@ -66,6 +73,7 @@ const URGENCY: Record<SafetyClass, 1 | 2 | 3> = {
   medication_change: 2,
 };
 const now = () => new Date().toISOString();
+const SKIP = /^(skip|no|no thanks|not today|नहीं|छोड़ो|छोड़िए|आज नहीं)[\s.!।]*$/i;
 
 /** Opening: the AI disclosure always comes first (rule 2.10), then the first question. */
 export function startCall(ctx: CallContext): { state: CallState; say: string[] } {
@@ -122,6 +130,13 @@ export async function takeTurn(
     say.push(line(ctx.locale, 'closing', v));
     end('completed');
   };
+  // A clean finish may offer the research task; a flagged call goes straight to close().
+  const finish = () => {
+    if (!ctx.speechTask || state.slots.speech) return close();
+    state.step = 'speech_task';
+    state.slots.speech = { offeredAt: now() };
+    say.push(line(ctx.locale, 'speechTask'));
+  };
 
   // 1. Safety first, on the raw words.
   const hits = matchSafety(utterance);
@@ -133,6 +148,14 @@ export async function takeTurn(
   } else if (cls) {
     flags.push(flagFrom(hits, utterance));
     say.push(line(ctx.locale, 'flagged', v));
+    close();
+  } else if (state.step === 'speech_task') {
+    // Research words: no LLM, and the care transcript keeps a marker instead of them.
+    const sp = state.slots.speech!;
+    sp.status = SKIP.test(utterance.trim()) ? 'skipped' : 'done';
+    sp.ms = sp.status === 'done' ? Math.min(120_000, Date.now() - Date.parse(sp.offeredAt)) : 0;
+    state.turns[state.turns.length - 1]!.text = '[research speech task]';
+    if (sp.status === 'done') say.push(line(ctx.locale, 'speechThanks'));
     close();
   } else {
     // 2. Only now may the LLM read it, and only to fill this step's slots.
@@ -171,7 +194,7 @@ export async function takeTurn(
         state.slots.medsTaken = slots.medsTaken;
         if (slots.medsTaken === 'no' || slots.medsTaken === 'some') say.push(line(ctx.locale, 'medsMissed'));
         else if (slots.medsTaken === 'yes') say.push(line(ctx.locale, 'medsThanks'));
-        nextUpcoming(state, ctx, say, close);
+        nextUpcoming(state, ctx, say, finish);
       } else if (step === 'upcoming' && 'response' in slots) {
         const item = ctx.upcoming[state.upcomingIndex]!;
         if (slots.response === 'wants_help') {
@@ -182,7 +205,7 @@ export async function takeTurn(
           say.push(line(ctx.locale, 'upcomingNoThanks'));
         }
         state.upcomingIndex++;
-        nextUpcoming(state, ctx, say, close);
+        nextUpcoming(state, ctx, say, finish);
       }
     }
   }
@@ -191,9 +214,9 @@ export async function takeTurn(
   return { state, say, flags };
 }
 
-function nextUpcoming(state: CallState, ctx: CallContext, say: string[], close: () => void) {
+function nextUpcoming(state: CallState, ctx: CallContext, say: string[], finish: () => void) {
   const item = ctx.upcoming[state.upcomingIndex];
-  if (!item) return close();
+  if (!item) return finish();
   state.step = 'upcoming';
   say.push(line(ctx.locale, 'upcoming', { item: itemLine(ctx.locale, item.kind, item.drug) }));
 }

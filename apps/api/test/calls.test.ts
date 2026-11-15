@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 import { EVENTS_CHANNEL } from '@tomoni/contracts';
-import { closePools, env, hashFor, ownerDb, schema } from '@tomoni/db';
+import { closePools, env, hashFor, ownerDb, pool, schema } from '@tomoni/db';
 import { MockLLM } from '@tomoni/voice';
 import { buildServer } from '../src/server';
 import { Client, makePracticeAndHousehold, makeUser, ORIGIN, totp } from './helpers';
@@ -219,5 +219,43 @@ describe('live events (SSE)', () => {
     await reader.cancel();
     expect(text).toContain('event: flag.created');
     expect(text).not.toContain('id: 1\n');
+  });
+});
+
+describe('Voice Lab on the call (rule 2.8, D-009)', () => {
+  it('with speech-task consent: the sample goes to research, its seconds stay out of care time', async () => {
+    const db = ownerDb();
+    const pid = await patient(ids.practiceId, ids.householdId, true);
+    const { rows } = await db.execute<{
+      id: string;
+    }>(sql`INSERT INTO research.protocol (code, version, title, irb_name,
+      irb_approval_ref, approved_at, expires_at, status, plain_summary) VALUES ('VL-API', 1, 'Voice Lab', 'IRB', 'IRB-1',
+      '2026-01-01', '2099-01-01', 'approved', '{"en":"…"}') RETURNING id`);
+    await db.execute(sql`INSERT INTO research.research_consent (patient_id, protocol_id, given_by_kind,
+      hipaa_authorization_ref, recording_permission, scope_speech_task, scope_trial_matching, scope_pgx_research,
+      method, locale) VALUES (${pid}, ${rows[0]!.id}, 'patient', 'H', true, true, false, false, 'e_sign', 'en')`);
+
+    const { callId } = (await nurse.req('POST', '/api/sim/calls', { patientId: pid })).json();
+    await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: "I'm fine" });
+    const offer = (await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'yes' })).json();
+    expect(offer.say.join(' ')).toContain('for the research study you joined');
+    await new Promise((r) => setTimeout(r, 1100));
+    const words = 'Yesterday I went to the market with my son and bought mangoes';
+    const end = (await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: words })).json();
+    expect(end.ended).toBe(true);
+
+    const [c] = await db
+      .select()
+      .from(schema.call)
+      .where(sql`id = ${callId}`);
+    expect(c!.researchSeconds).toBeGreaterThanOrEqual(1);
+    expect(c!.transcript).not.toContain('mangoes');
+    const s = await db.execute(sql`SELECT s.duration_ms FROM research.speech_sample s
+      JOIN research.research_id r USING (research_pid) WHERE r.patient_id = ${pid}`);
+    expect(s.rows).toHaveLength(1);
+    // The desk's patient view (care role) can't see the research table.
+    await expect(pool('app').query('SELECT 1 FROM research.speech_sample')).rejects.toThrow(
+      /permission denied/,
+    );
   });
 });

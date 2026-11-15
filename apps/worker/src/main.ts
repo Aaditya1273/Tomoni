@@ -27,6 +27,11 @@ await queue.upsertJobScheduler(
   { name: 'trials.match', data: {} },
 );
 await queue.upsertJobScheduler(
+  'research-nightly',
+  { pattern: '0 6 * * *', tz: 'America/New_York' },
+  { name: 'research.nightly', data: {} },
+);
+await queue.upsertJobScheduler(
   'engine-nightly',
   { pattern: '0 5 * * *', tz: 'America/New_York' },
   { name: 'engine.run', data: {} },
