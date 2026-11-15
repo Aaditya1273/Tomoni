@@ -1,0 +1,33 @@
+# private plan (lives in the Claude doc)
+isoko.md
+
+# deps / build
+node_modules/
+.pnpm-store/
+dist/
+.next/
+.turbo/
+out/
+coverage/
+storybook-static/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# test artifacts
+playwright-report/
+test-results/
+blob-report/
+
+# python
+__pycache__/
+.venv/
+*.pyc
+
+# local data
+.data/
+*.log
+.DS_Store
