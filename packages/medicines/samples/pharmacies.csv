@@ -1,0 +1,8 @@
+# Synthetic pharmacies. NPIs start with 0, which no real NPI does.
+npi,name,address,phone
+0999000001,Main Street Pharmacy,"Edison, NJ",732-555-0141
+0999000002,Oak Tree Drugs,"Edison, NJ",732-555-0142
+0999000003,Journal Square Pharmacy,"Jersey City, NJ",201-555-0143
+0999000004,Newark Ave Chemists,"Jersey City, NJ",201-555-0144
+0999000005,Devon Avenue Pharmacy,"Chicago, IL",312-555-0145
+0999000006,Lakeview Mail Order Pharmacy,"Chicago, IL",312-555-0146

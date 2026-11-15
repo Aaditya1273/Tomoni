@@ -1,0 +1,20 @@
+# Drug names and RxCUIs from RxNorm. NDCs are synthetic (labeler 99000) so they can never match a real package.
+ndc,rxcui,name
+99000000101,861007,metformin hydrochloride 500 MG Oral Tablet
+99000000201,197361,amlodipine 5 MG Oral Tablet
+99000000301,617310,atorvastatin 20 MG Oral Tablet
+99000000401,314076,lisinopril 10 MG Oral Tablet
+99000000501,979485,losartan potassium 50 MG Oral Tablet
+99000000601,966222,levothyroxine sodium 0.05 MG Oral Tablet
+99000000701,309362,clopidogrel 75 MG Oral Tablet
+99000000801,665033,sitagliptin 100 MG Oral Tablet
+99000000901,1364445,apixaban 5 MG Oral Tablet
+99000001001,866436,24 HR metoprolol succinate 50 MG Extended Release Oral Tablet
+99000001101,198053,omeprazole 20 MG Delayed Release Oral Capsule
+99000001201,198211,simvastatin 20 MG Oral Tablet
+99000001301,310798,hydrochlorothiazide 25 MG Oral Tablet
+99000001401,310431,gabapentin 300 MG Oral Capsule
+99000001501,863669,tamsulosin hydrochloride 0.4 MG Oral Capsule
+99000001601,745679,albuterol 0.09 MG/ACTUAT Metered Dose Inhaler
+99000001701,855332,warfarin sodium 5 MG Oral Tablet
+99000001801,1545653,empagliflozin 10 MG Oral Tablet

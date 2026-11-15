@@ -1,0 +1,11 @@
+{
+  "label": "Synthetic sample in CMS Part D file format, 2026",
+  "year": 2026,
+  "effectiveDate": "2026-01-01",
+  "sourceUrl": "https://www.cms.gov/research-statistics-data-and-systems/files-for-order/nonidentifiabledatafiles/prescriptiondrugplanformularypharmacynetworkandpricinginformationfiles",
+  "files": {
+    "plan": "plan_information.txt",
+    "formulary": "basic_drugs_formulary.txt",
+    "pricing": "pricing.txt"
+  }
+}

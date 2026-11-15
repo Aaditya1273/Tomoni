@@ -194,6 +194,9 @@ importers:
       '@tomoni/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@tomoni/seed':
+        specifier: workspace:*
+        version: link:../../packages/seed
       '@types/react':
         specifier: ^19.2.0
         version: 19.3.0
@@ -249,9 +252,6 @@ importers:
 
   packages/db:
     dependencies:
-      '@node-rs/argon2':
-        specifier: ^2.2.2
-        version: 2.2.2
       '@tomoni/core':
         specifier: workspace:*
         version: link:../core
@@ -283,6 +283,50 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/medicines:
+    dependencies:
+      '@tomoni/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tomoni/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/seed:
+    dependencies:
+      '@node-rs/argon2':
+        specifier: ^2.2.2
+        version: 2.2.2
+      '@tomoni/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tomoni/db':
+        specifier: workspace:*
+        version: link:../db
+      '@tomoni/medicines':
+        specifier: workspace:*
+        version: link:../medicines
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
 
   packages/ui:
     dependencies:
