@@ -50,7 +50,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 - [ ] Twilio tested end to end against real numbers (signature checks are tested only against Twilio's documented example).
 - [ ] The live LLM prompt evaluation run and passed (`pnpm --filter @tomoni/voice eval`, D-023).
 - [ ] Drug shortage and pharmacy closure feeds chosen.
-- [ ] Stripe account, the live price matching `TOMONI_FAMILY_PLAN_CENTS`, the webhook endpoint and secret, tax registration, and a refund policy (D-030).
+- [ ] Stripe account, the live price matching `TOMONI_FAMILY_PLAN_CENTS`, the webhook endpoint and secret (events: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`), the customer portal set to cancel at period end, tax registration with `TOMONI_STRIPE_AUTOMATIC_TAX`, and a refund policy (D-030).
 
 ## Last step
 - [ ] Synthetic demo logins and seed data are absent from production; the seed refuses to run when real data is enabled.

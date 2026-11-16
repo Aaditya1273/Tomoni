@@ -615,6 +615,8 @@ export const BillingStatus = z.object({
   region: z.enum(['US', 'IN']),
   status: z.enum(['none', 'pending', 'active', 'past_due', 'canceled']),
   periodEnd: z.string().nullable(),
+  /** The plan ends then (a cancel at period end); calls stop after it. */
+  cancelAt: z.string().nullable(),
   price: z.object({ cents: z.int(), currency: z.literal('USD') }),
 });
 export type BillingStatus = z.infer<typeof BillingStatus>;

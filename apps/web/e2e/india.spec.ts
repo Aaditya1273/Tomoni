@@ -73,4 +73,14 @@ test('Priya turns on daily calls for her mother: the family pays, through checko
   await expect(plan.getByRole('button', { name: /Start daily calls/ })).toHaveCount(0);
   await expectAccessible(page);
   await snap(page, info, 'family-india-plan');
+
+  // Self-service cancel at the end of the paid month, then change of mind.
+  await plan.getByRole('button', { name: 'Update card or cancel' }).click();
+  await expect(page.getByRole('heading', { name: 'Sandbox payment account' })).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Cancel at the end of this month' }).click();
+  await expect(plan).toContainText('Daily calls to Sunita-ben end on');
+  await plan.getByRole('button', { name: 'Update card or cancel' }).click();
+  await page.getByRole('button', { name: 'Keep daily calls' }).click();
+  await expect(plan).toContainText('The next payment of $29.00 is on');
 });

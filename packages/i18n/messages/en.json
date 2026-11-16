@@ -286,7 +286,14 @@
       "mockTitle": "Sandbox checkout",
       "mockBody": "This page stands in for the payment provider. It asks for no card, and no money moves.",
       "mockPay": "Complete sandbox payment",
-      "mockCancel": "Go back without paying"
+      "mockCancel": "Go back without paying",
+      "manage": "Update card or cancel",
+      "ending": "Daily calls to {name} end on {date}. You won't be charged again.",
+      "mockManageTitle": "Sandbox payment account",
+      "mockManageBody": "This page stands in for the payment provider's account page, where you update the card or cancel. A cancel takes effect at the end of the month already paid.",
+      "mockCancelPlan": "Cancel at the end of this month",
+      "mockResume": "Keep daily calls",
+      "mockBack": "Go back"
     }
   },
   "desk": {

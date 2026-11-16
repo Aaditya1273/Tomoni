@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { scopeFromGrants } from '@tomoni/core';
 import { closePools, hashFor, ownerDb, schema, withScope } from '@tomoni/db';
@@ -132,6 +132,37 @@ describe('family plan, India bridge (D-030)', () => {
     const again = await priya.req('POST', '/api/family/billing/checkout', { householdId: india.householdId });
     expect(again.statusCode).toBe(409);
   });
+
+  it('the family cancels at period end; calls stop once it passes; another family cannot', async () => {
+    const m = await priya.req('POST', '/api/family/billing/manage', { householdId: india.householdId });
+    expect(m.json().url).toBe(`/family/billing/mock-manage?household=${india.householdId}`);
+    expect(
+      (
+        await usFamily.req('POST', '/api/billing/mock/cancel', {
+          householdId: india.householdId,
+          cancel: true,
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (await priya.req('POST', '/api/billing/mock/cancel', { householdId: india.householdId, cancel: true }))
+        .statusCode,
+    ).toBe(200);
+    const [plan] = (await priya.req('GET', '/api/family/billing')).json();
+    expect(plan).toMatchObject({ status: 'active', cancelAt: expect.any(String) });
+    expect(await callable()).toBe(true); // paid month still runs
+    await db.execute(
+      sql`UPDATE care.subscription SET cancel_at = now() - interval '1 minute' WHERE household_id = ${india.householdId}`,
+    );
+    expect(await callable()).toBe(false); // even if the provider's final event never arrives
+    expect((await priya.req('GET', '/api/family/billing')).json()[0].status).toBe('canceled');
+    await db.execute(
+      sql`UPDATE care.subscription SET cancel_at = now() + interval '1 day' WHERE household_id = ${india.householdId}`,
+    );
+    await priya.req('POST', '/api/billing/mock/cancel', { householdId: india.householdId, cancel: false });
+    expect((await priya.req('GET', '/api/family/billing')).json()[0]).toMatchObject({ cancelAt: null });
+    expect(await callable()).toBe(true);
+  });
 });
 
 describe('Stripe webhooks', () => {
@@ -153,7 +184,7 @@ describe('Stripe webhooks', () => {
 
   beforeAll(async () => {
     await db.execute(sql`UPDATE care.subscription SET status = 'pending', provider = 'stripe', checkout_ref = 'cs_test_1',
-      subscription_ref = NULL, customer_ref = NULL, current_period_end = NULL WHERE household_id = ${hh()}`);
+      subscription_ref = NULL, cancel_at = NULL, customer_ref = NULL, current_period_end = NULL WHERE household_id = ${hh()}`);
   });
 
   it('verifies signatures the way Stripe documents them', () => {
@@ -162,6 +193,27 @@ describe('Stripe webhooks', () => {
     expect(verifyStripeSignature(`${raw} `, header, SECRET, 1_800_000_000_000)).toBe(false);
     expect(verifyStripeSignature(raw, header, SECRET, 1_800_000_400_000)).toBe(false); // > 5 min old
     expect(verifyStripeSignature(raw, undefined, SECRET)).toBe(false);
+  });
+
+  it("opens Stripe's portal for the customer, and only a Stripe-hosted one", async () => {
+    const s = new StripeBilling({ secretKey: 'sk_test_x', priceId: 'price_x', webhookSecret: SECRET });
+    const seen: string[] = [];
+    vi.stubGlobal('fetch', async (u: string, i: RequestInit) => {
+      seen.push(`${u} ${String(i.body)}`);
+      return Response.json({
+        id: 'bps_1',
+        url: seen.length === 1 ? 'https://billing.stripe.com/p/1' : 'https://evil.example/',
+      });
+    });
+    try {
+      const o = { customerRef: 'cus_1', householdId: hh(), returnUrl: 'https://app.example/family' };
+      expect(await s.manage(o)).toEqual({ url: 'https://billing.stripe.com/p/1' });
+      expect(seen[0]).toContain('/v1/billing_portal/sessions customer=cus_1');
+      await expect(s.manage(o)).rejects.toThrow(/unexpected url/);
+      await expect(s.manage({ ...o, customerRef: null })).rejects.toThrow(/no customer/);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('rejects a bad or stale signature without a session or CSRF token, and changes nothing', async () => {
@@ -195,6 +247,23 @@ describe('Stripe webhooks', () => {
     });
     expect(await sub(us.householdId)).toBeUndefined();
 
+    // A cancel from the portal: active until the paid period ends, then not dialed.
+    const at = (s: number) => ({
+      id: `evt_u${s}`,
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_1', status: 'active', cancel_at: Math.floor(Date.now() / 1000) + s } },
+    });
+    await post(at(86_400));
+    expect(await callable()).toBe(true);
+    await post(at(-60));
+    expect(await callable()).toBe(false);
+    await post({
+      id: 'evt_u0',
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_1', status: 'active', cancel_at: null } },
+    });
+    expect(await callable()).toBe(true);
+
     await post({
       id: 'evt_2',
       type: 'invoice.payment_failed',
@@ -205,6 +274,13 @@ describe('Stripe webhooks', () => {
     await post({ id: 'evt_3', type: 'customer.subscription.deleted', data: { object: { id: 'sub_1' } } });
     expect(await sub(hh())).toMatchObject({ status: 'canceled' });
     expect(await callable()).toBe(false);
+    // A late or replayed update never revives a canceled plan.
+    await post({
+      id: 'evt_late',
+      type: 'customer.subscription.updated',
+      data: { object: { id: 'sub_1', status: 'active', cancel_at: null } },
+    });
+    expect(await sub(hh())).toMatchObject({ status: 'canceled' });
     const audits = await db.execute<{ n: number }>(
       sql`SELECT count(*)::int AS n FROM audit.event WHERE entity_type = 'subscription' AND entity_id = ${hh()}`,
     );

@@ -8,7 +8,10 @@ import { realDataEnabled } from '@tomoni/db';
 
 export type BillingEvent = {
   id: string;
-  kind: 'activated' | 'renewed' | 'past_due' | 'canceled' | 'ignored';
+  kind: 'activated' | 'renewed' | 'past_due' | 'canceled' | 'updated' | 'ignored';
+  /** For 'updated': the provider's status mapped to ours, and the scheduled end (null = none). */
+  status?: 'active' | 'past_due' | 'canceled' | undefined;
+  cancelAt?: Date | null | undefined;
   householdId?: string | undefined;
   checkoutRef?: string | undefined;
   subscriptionRef?: string | undefined;
@@ -23,6 +26,8 @@ export interface BillingProvider {
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ ref: string; url: string }>;
+  /** A provider page where the family updates the card or cancels. */
+  manage(o: { customerRef: string | null; householdId: string; returnUrl: string }): Promise<{ url: string }>;
   /** Null when the signature is missing, wrong or stale. */
   parseWebhook(raw: string, headers: Record<string, string | string[] | undefined>): BillingEvent | null;
 }
@@ -49,6 +54,16 @@ export function verifyStripeSignature(
 
 type StripeObject = Record<string, unknown> & { id: string };
 
+// Stripe subscription statuses we act on; 'incomplete' and friends wait for checkout to finish.
+const STRIPE_STATUS: Record<string, 'active' | 'past_due' | 'canceled'> = {
+  active: 'active',
+  trialing: 'active',
+  past_due: 'past_due',
+  unpaid: 'canceled',
+  canceled: 'canceled',
+  incomplete_expired: 'canceled',
+};
+
 export class StripeBilling implements BillingProvider {
   readonly mode = 'stripe';
   constructor(
@@ -73,8 +88,27 @@ export class StripeBilling implements BillingProvider {
       cancel_url: c.cancelUrl,
       client_reference_id: c.householdId,
       'subscription_data[metadata][household_id]': c.householdId,
+      // Stripe Tax computes sales tax or GST once the account is registered (GO_LIVE_CHECKLIST).
+      ...(process.env.TOMONI_STRIPE_AUTOMATIC_TAX === 'true' ? { 'automatic_tax[enabled]': 'true' } : {}),
     });
-    const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    const s = await this.post('checkout/sessions', body);
+    if (!s.url.startsWith('https://checkout.stripe.com/')) throw new Error('stripe checkout: unexpected url');
+    return { ref: s.id, url: s.url };
+  }
+
+  /** Stripe's customer portal: card update and cancel (at period end, as configured there). */
+  async manage(c: { customerRef: string | null; returnUrl: string }) {
+    if (!c.customerRef) throw new Error('stripe portal: no customer');
+    const s = await this.post(
+      'billing_portal/sessions',
+      new URLSearchParams({ customer: c.customerRef, return_url: c.returnUrl }),
+    );
+    if (!s.url.startsWith('https://billing.stripe.com/')) throw new Error('stripe portal: unexpected url');
+    return { url: s.url };
+  }
+
+  private async post(path: string, body: URLSearchParams) {
+    const res = await fetch(`https://api.stripe.com/v1/${path}`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.o.secretKey}`,
@@ -83,11 +117,9 @@ export class StripeBilling implements BillingProvider {
       body,
       signal: AbortSignal.timeout(15_000),
     });
-    if (!res.ok) throw new Error(`stripe checkout: HTTP ${res.status}`);
-    const s = (await res.json()) as { id: string; url: string };
-    if (!s.url?.startsWith('https://checkout.stripe.com/'))
-      throw new Error('stripe checkout: unexpected url');
-    return { ref: s.id, url: s.url };
+    if (!res.ok) throw new Error(`stripe ${path}: HTTP ${res.status}`);
+    const s = (await res.json()) as { id: string; url?: string };
+    return { id: s.id, url: s.url ?? '' };
   }
 
   parseWebhook(raw: string, headers: Record<string, string | string[] | undefined>): BillingEvent | null {
@@ -119,6 +151,12 @@ export class StripeBilling implements BillingProvider {
       }
       case 'invoice.payment_failed':
         return { id: e.id, kind: 'past_due', subscriptionRef: str(o.subscription) };
+      case 'customer.subscription.updated': {
+        const status = STRIPE_STATUS[str(o.status) ?? ''];
+        if (!status) return { id: e.id, kind: 'ignored' };
+        const at = typeof o.cancel_at === 'number' ? new Date(o.cancel_at * 1000) : null;
+        return { id: e.id, kind: 'updated', subscriptionRef: o.id, status, cancelAt: at };
+      }
       case 'customer.subscription.deleted':
         return { id: e.id, kind: 'canceled', subscriptionRef: o.id };
       default:
@@ -134,6 +172,9 @@ export class MockBilling implements BillingProvider {
     const ref = `mock_cs_${randomUUID()}`;
     const q = new URLSearchParams({ ref, success: c.successUrl, cancel: c.cancelUrl });
     return { ref, url: `/family/billing/mock-checkout?${q}` };
+  }
+  async manage(c: { householdId: string }) {
+    return { url: `/family/billing/mock-manage?household=${c.householdId}` };
   }
   parseWebhook() {
     return null; // the mock has no webhook; its checkout page completes through /api/billing/mock/complete

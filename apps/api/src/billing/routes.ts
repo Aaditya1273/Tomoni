@@ -35,9 +35,13 @@ export async function applyBillingEvent(db: Db, provider: 'stripe' | 'mock', e: 
             AND status = 'pending' RETURNING household_id`)
       : e.kind !== 'ignored' && e.subscriptionRef
         ? await db.execute<{ household_id: string }>(sql`UPDATE care.subscription
-            SET status = ${e.kind === 'renewed' ? 'active' : e.kind},
-                current_period_end = coalesce(${period}::timestamptz, current_period_end), updated_at = now()
+            SET status = ${e.kind === 'renewed' ? 'active' : e.kind === 'updated' ? (e.status ?? null) : e.kind},
+                current_period_end = coalesce(${period}::timestamptz, current_period_end),
+                cancel_at = CASE WHEN ${e.kind} = 'updated' THEN ${e.cancelAt?.toISOString() ?? null}::timestamptz
+                                 ELSE cancel_at END,
+                updated_at = now()
             WHERE subscription_ref = ${e.subscriptionRef} AND provider = ${provider}
+              AND status <> 'canceled' -- final: a late or replayed event never revives a canceled plan
               AND (${e.kind} <> 'past_due' OR status = 'active') RETURNING household_id`)
         : { rows: [] };
   for (const r of changed.rows)
@@ -47,7 +51,7 @@ export async function applyBillingEvent(db: Db, provider: 'stripe' | 'mock', e: 
       entityId: r.household_id,
       patientId: null,
       purpose: 'payment',
-      details: { event: e.kind, provider },
+      details: { event: e.kind, provider, ...(e.status ? { status: e.status } : {}) },
     });
   return true;
 }
@@ -67,8 +71,9 @@ export const billingRoutes =
       async (req) =>
         withScope('app', req.auth!.scope, async (db) => {
           const { rows } = await db.execute<z.infer<typeof BillingStatus>>(sql`
-            SELECT h.id AS "householdId", h.region, coalesce(s.status, 'none') AS status,
-                   s.current_period_end::text AS "periodEnd"
+            SELECT h.id AS "householdId", h.region,
+                   CASE WHEN s.cancel_at <= now() THEN 'canceled' ELSE coalesce(s.status, 'none') END AS status,
+                   s.current_period_end::text AS "periodEnd", s.cancel_at::text AS "cancelAt"
               FROM care.household h LEFT JOIN care.subscription s ON s.household_id = h.id
              WHERE h.id = ANY(${sql.param(req.auth!.scope.householdIds)}::uuid[]) ORDER BY h.created_at`);
           return rows.map((r) => ({ ...r, price: price() }));
@@ -129,6 +134,37 @@ export const billingRoutes =
       },
     );
 
+    app.post(
+      '/api/family/billing/manage',
+      {
+        preHandler: FAMILY,
+        config: { rateLimit: { max: 20, timeWindow: '1 hour' } },
+        schema: {
+          tags: ['family'],
+          body: z.strictObject({ householdId: z.uuid() }),
+          response: { 200: z.object({ url: z.string() }), 403: ErrorBody, 404: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        const { householdId } = req.body;
+        if (!req.auth!.scope.householdIds.includes(householdId))
+          return reply.code(403).send({ error: 'forbidden', message: 'Not your household.' });
+        const sub = await withScope('app', req.auth!.scope, async (db) => {
+          const { rows } = await db.execute<{ customer_ref: string | null }>(sql`
+            SELECT customer_ref FROM care.subscription WHERE household_id = ${householdId}
+               AND status IN ('active', 'past_due') AND provider = ${provider.mode}`);
+          return rows[0];
+        });
+        if (!sub || (provider.mode === 'stripe' && !sub.customer_ref))
+          return reply.code(404).send({ error: 'not_found', message: 'No plan to manage.' });
+        return provider.manage({
+          customerRef: sub.customer_ref,
+          householdId,
+          returnUrl: `${deps.mockCheckout ? '' : deps.publicOrigin}/family`,
+        });
+      },
+    );
+
     // Signed by the provider, not the browser: no session, no CSRF (session.ts exempts this path).
     await app.register(async (hook) => {
       hook.addContentTypeParser(
@@ -180,6 +216,43 @@ export const billingRoutes =
               checkoutRef: req.body.ref,
               subscriptionRef: `mock_sub_${randomUUID()}`,
               periodEnd: new Date(Date.now() + 30 * 86_400_000),
+            }),
+          );
+          return { ok: true };
+        },
+      );
+
+    // The mock manage page: cancel at the end of the paid period, or keep the plan.
+    if (deps.mockCheckout && provider.mode === 'mock')
+      app.post(
+        '/api/billing/mock/cancel',
+        {
+          preHandler: FAMILY,
+          schema: {
+            tags: ['family'],
+            body: z.strictObject({ householdId: z.uuid(), cancel: z.boolean() }),
+            response: { 200: z.object({ ok: z.boolean() }), 404: ErrorBody },
+          },
+        },
+        async (req, reply) => {
+          const { householdId, cancel } = req.body;
+          const sub = req.auth!.scope.householdIds.includes(householdId)
+            ? await withScope('app', req.auth!.scope, async (db) => {
+                const { rows } = await db.execute<{ ref: string; end: Date | null }>(sql`
+                  SELECT subscription_ref AS ref, current_period_end AS "end" FROM care.subscription
+                   WHERE household_id = ${householdId} AND provider = 'mock' AND status IN ('active', 'past_due')
+                     AND subscription_ref IS NOT NULL`);
+                return rows[0];
+              })
+            : undefined;
+          if (!sub) return reply.code(404).send({ error: 'not_found', message: 'No plan to manage.' });
+          await withScope('worker', systemScope('billing.mock'), (db) =>
+            applyBillingEvent(db, 'mock', {
+              id: `mock_evt_${randomUUID()}`,
+              kind: 'updated',
+              subscriptionRef: sub.ref,
+              status: 'active',
+              cancelAt: cancel ? new Date(sub.end ?? Date.now()) : null,
             }),
           );
           return { ok: true };
