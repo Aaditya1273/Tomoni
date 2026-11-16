@@ -543,6 +543,75 @@ export const ResearchMatches = z.array(
   }),
 );
 export type ResearchMatches = z.infer<typeof ResearchMatches>;
+
+// ─── research: trial setup by the coordinator (closed criteria, approved pre-screen) ─────
+const Lang = z.enum(['en', 'hi', 'gu', 'ta', 'pa', 'bn']);
+const Age = z.int().min(18).max(110);
+/** The closed set the matcher understands (packages/trials): coarse values only (differencing). */
+export const TrialCriterion = z.discriminatedUnion('field', [
+  z.strictObject({ field: z.literal('age_band_min'), value: Age }),
+  z.strictObject({ field: z.literal('age_band_max'), value: Age }),
+  z.strictObject({
+    field: z.literal('condition_any'),
+    value: z
+      .array(z.string().regex(/^[a-z_]{2,40}$/))
+      .min(1)
+      .max(12),
+  }),
+  z.strictObject({
+    field: z.literal('drug_any'),
+    value: z
+      .array(z.string().regex(/^\d{1,10}$/))
+      .min(1)
+      .max(20),
+  }),
+  z.strictObject({ field: z.literal('inpatient_within_days'), value: z.int().min(1).max(730) }),
+  z.strictObject({ field: z.literal('language_any'), value: z.array(Lang).min(1) }),
+]);
+export const PrescreenQuestion = z.strictObject({
+  /** The approved wording per language; English is required and used when a language has none. */
+  wording: z
+    .partialRecord(Lang, z.string().trim().min(5).max(300))
+    .refine((w) => !!w.en, 'English wording is required'),
+  eligibleAnswer: z.enum(['yes', 'no']),
+  approvalRef: z.string().trim().min(3).max(100),
+});
+export const TrialDraft = z.strictObject({
+  sponsorId: z.uuid(),
+  title: z.string().trim().min(3).max(200),
+  therapeuticArea: z.string().trim().min(2).max(80),
+  nctId: z
+    .string()
+    .regex(/^NCT\d{8}$/)
+    .nullable(),
+  criteria: z.array(TrialCriterion).min(1).max(10),
+  questions: z.array(PrescreenQuestion).max(5),
+});
+export type TrialDraft = z.infer<typeof TrialDraft>;
+export const TrialSetup = TrialDraft.extend({
+  // What is stored, as stored: older trials were set up before these input rules.
+  criteria: z.array(z.object({ field: z.string(), value: z.unknown() })),
+  questions: z.array(
+    z.object({
+      wording: z.record(z.string(), z.string()),
+      eligibleAnswer: z.string(),
+      approvalRef: z.string(),
+    }),
+  ),
+  nctId: z.string().nullable(),
+  id: z.uuid(),
+  sponsorName: z.string(),
+  status: z.enum(['draft', 'recruiting', 'closed']),
+  matched: z.int(),
+});
+export const TrialSetups = z.array(TrialSetup);
+export type TrialSetups = z.infer<typeof TrialSetups>;
+export const TrialSetupOptions = z.object({
+  sponsors: z.array(z.object({ id: z.uuid(), name: z.string() })),
+  conditions: z.array(z.object({ code: z.string(), name: z.string() })),
+});
+export type TrialSetupOptions = z.infer<typeof TrialSetupOptions>;
+export type TrialSetup = z.infer<typeof TrialSetup>;
 // Sponsor portal: aggregates only.
 export const SponsorTrials = z.array(
   z.object({

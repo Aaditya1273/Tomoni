@@ -13,15 +13,22 @@ import {
   ResearchConsentBody,
   ResearchMatches,
   ResearchOverview,
+  TrialDraft,
   TrialIntros,
+  TrialSetupOptions,
+  TrialSetups,
+  type TrialSetup,
 } from '@tomoni/contracts';
 import { systemScope } from '@tomoni/core';
 import { audit, schema, withScope } from '@tomoni/db';
+import { CHRONIC } from '@tomoni/care';
 import { BILLABLE, canAdvance, type Stage } from '@tomoni/trials';
 import { requireAuth } from '../auth/session';
 
 const FAMILY = requireAuth({ roles: ['family_member', 'patient', 'representative'] });
 const research = systemScope('research');
+const COORDINATOR = requireAuth({ roles: ['research_coordinator'] });
+const CONDITIONS = new Set(CHRONIC.map((c) => c.code));
 
 export const researchRoutes =
   (deps: { queue: Queue }): FastifyPluginAsyncZod =>
@@ -413,6 +420,131 @@ export const researchRoutes =
         if (r === 'not_found') return reply.code(404).send({ error: 'not_found', message: 'No such match.' });
         if (r === 'bad_step')
           return reply.code(409).send({ error: 'bad_step', message: 'That step is not next.' });
+        return reply.code(204).send(null);
+      },
+    );
+
+    // ── Trial setup, by the coordinator: closed criteria and approved pre-screen questions. A
+    // trial starts as a draft that nobody is matched to; it is never edited once created, so the
+    // approved wording stays what was approved. To change one, close it and draft another. ──
+    app.get(
+      '/api/research/setup-options',
+      { preHandler: COORDINATOR, schema: { tags: ['research'], response: { 200: TrialSetupOptions } } },
+      async () => ({
+        sponsors: await withScope(
+          'worker',
+          research,
+          async (db) =>
+            (
+              await db.execute<{ id: string; name: string }>(
+                sql`SELECT id, name FROM research.sponsor ORDER BY name`,
+              )
+            ).rows,
+        ),
+        conditions: CHRONIC.map(({ code, name }) => ({ code, name })),
+      }),
+    );
+
+    app.get(
+      '/api/research/trials',
+      { preHandler: COORDINATOR, schema: { tags: ['research'], response: { 200: TrialSetups } } },
+      async () =>
+        withScope('worker', research, async (db) => {
+          const { rows } = await db.execute<TrialSetup>(sql`
+            SELECT t.id, t.sponsor_id AS "sponsorId", s.name AS "sponsorName", t.title,
+                   t.therapeutic_area AS "therapeuticArea", t.nct_id AS "nctId", t.status,
+                   coalesce((SELECT jsonb_agg(jsonb_build_object('field', c.field, 'value', c.value) ORDER BY c.field)
+                               FROM research.trial_criterion c WHERE c.trial_id = t.id), '[]') AS criteria,
+                   coalesce((SELECT jsonb_agg(jsonb_build_object('wording', q.wording, 'eligibleAnswer', q.eligible_answer,
+                                                                 'approvalRef', q.approval_ref) ORDER BY q.ordinal)
+                               FROM research.prescreen_question q WHERE q.trial_id = t.id), '[]') AS questions,
+                   (SELECT count(*)::int FROM research.trial_match m WHERE m.trial_id = t.id) AS matched
+              FROM research.trial t JOIN research.sponsor s ON s.id = t.sponsor_id ORDER BY t.created_at DESC`);
+          return rows;
+        }),
+    );
+
+    app.post(
+      '/api/research/trials',
+      {
+        preHandler: COORDINATOR,
+        schema: {
+          tags: ['research'],
+          body: TrialDraft,
+          response: { 200: z.object({ id: z.uuid() }), 400: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        const b = req.body;
+        const unknown = b.criteria.flatMap((c) =>
+          c.field === 'condition_any' ? c.value.filter((x) => !CONDITIONS.has(x)) : [],
+        );
+        if (unknown.length)
+          return reply
+            .code(400)
+            .send({ error: 'bad_condition', message: `Unknown condition: ${unknown.join(', ')}` });
+        if (new Set(b.criteria.map((c) => c.field)).size !== b.criteria.length)
+          return reply.code(400).send({ error: 'duplicate_criterion', message: 'Each criterion once.' });
+        const id = await withScope('worker', research, async (db) => {
+          const { rows } = await db.execute<{ id: string }>(sql`
+            INSERT INTO research.trial (sponsor_id, title, therapeutic_area, nct_id, status)
+            VALUES (${b.sponsorId}, ${b.title}, ${b.therapeuticArea}, ${b.nctId}, 'draft') RETURNING id`);
+          const trialId = rows[0]!.id;
+          for (const c of b.criteria)
+            await db.execute(sql`INSERT INTO research.trial_criterion (trial_id, field, value)
+              VALUES (${trialId}, ${c.field}, ${JSON.stringify(c.value)}::jsonb)`);
+          for (const [i, q] of b.questions.entries())
+            await db.execute(sql`INSERT INTO research.prescreen_question (trial_id, ordinal, wording, eligible_answer, approval_ref)
+              VALUES (${trialId}, ${i + 1}, ${JSON.stringify(q.wording)}::jsonb, ${q.eligibleAnswer}, ${q.approvalRef})`);
+          return trialId;
+        });
+        await withScope('app', req.auth!.scope, (db) =>
+          audit(db, {
+            action: 'create',
+            entityType: 'trial',
+            entityId: id,
+            purpose: 'research',
+            details: { by: req.auth!.userId, criteria: b.criteria.length, questions: b.questions.length },
+          }),
+        );
+        return { id };
+      },
+    );
+
+    app.post(
+      '/api/research/trials/:id/status',
+      {
+        preHandler: COORDINATOR,
+        schema: {
+          tags: ['research'],
+          params: z.object({ id: z.uuid() }),
+          body: z.strictObject({ status: z.enum(['recruiting', 'closed']) }),
+          response: { 204: z.null(), 409: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        const to = req.body.status;
+        const moved = await withScope(
+          'worker',
+          research,
+          async (db) =>
+            (
+              await db.execute(sql`UPDATE research.trial SET status = ${to} WHERE id = ${req.params.id}
+              AND status = ${to === 'recruiting' ? 'draft' : 'recruiting'}
+               OR (id = ${req.params.id} AND ${to} = 'closed' AND status = 'draft') RETURNING 1`)
+            ).rows.length,
+        );
+        if (!moved)
+          return reply.code(409).send({ error: 'bad_step', message: 'Draft → recruiting → closed only.' });
+        await withScope('app', req.auth!.scope, (db) =>
+          audit(db, {
+            action: 'update',
+            entityType: 'trial',
+            entityId: req.params.id,
+            purpose: 'research',
+            details: { by: req.auth!.userId, status: to },
+          }),
+        );
         return reply.code(204).send(null);
       },
     );

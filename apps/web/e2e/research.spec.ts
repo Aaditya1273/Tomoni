@@ -120,4 +120,26 @@ test.describe.serial('Trial Bridge, end to end', () => {
     await coordinator.goto('/research');
     await expect(coordinator.locator(`tr[data-id="${matchId}"]`)).toHaveCount(0);
   });
+
+  test('the coordinator sets up a study: a draft until recruiting, then closed', async ({ browser }) => {
+    const coordinator = await staff(browser, 'research@demo.tomoni.test');
+    await coordinator.goto('/research/trials');
+    await expect(coordinator.getByRole('heading', { name: 'New study' })).toBeVisible();
+    await coordinator.getByLabel('Study title').fill('LUNG-VOICE (synthetic demo)');
+    await coordinator.getByLabel('Therapeutic area').fill('pulmonology');
+    await coordinator.getByRole('checkbox', { name: 'COPD' }).check();
+    await coordinator.getByRole('checkbox', { name: 'hi', exact: true }).check();
+    await coordinator.getByRole('button', { name: 'Add a question' }).click();
+    await coordinator.getByLabel('Question 1 (English)').fill('Do you use an inhaler every day?');
+    await coordinator.getByLabel('Ethics approval reference, question 1').fill('DEMO-IRB-0002');
+    await expectAccessible(coordinator);
+    await coordinator.getByRole('button', { name: 'Save as draft' }).click();
+    const study = coordinator.locator('li[data-trial="LUNG-VOICE (synthetic demo)"]');
+    await expect(study).toContainText('Draft');
+    await expect(study).toContainText('1 pre-screen question');
+    await study.getByRole('button', { name: 'Start recruiting' }).click();
+    await expect(study).toContainText('Recruiting');
+    await study.getByRole('button', { name: 'Close' }).click();
+    await expect(study).toContainText('Closed');
+  });
 });

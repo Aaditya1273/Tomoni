@@ -543,6 +543,43 @@
         "randomized": "Randomized",
         "declined": "Declined",
         "ineligible": "Not eligible"
+      },
+      "trials": {
+        "title": "Studies",
+        "new": "New study",
+        "status": {
+          "draft": "Draft",
+          "recruiting": "Recruiting",
+          "closed": "Closed"
+        },
+        "meta": "{sponsor} · {area} · {matched, plural, =0 {nobody matched} one {# matched} other {# matched}}",
+        "counts": "{criteria, plural, one {# criterion} other {# criteria}}, {questions, plural, =0 {no pre-screen} one {# pre-screen question} other {# pre-screen questions}}",
+        "recruit": "Start recruiting",
+        "close": "Close",
+        "discard": "Discard draft",
+        "sponsor": "Sponsor",
+        "studyTitle": "Study title",
+        "area": "Therapeutic area",
+        "nct": "ClinicalTrials.gov id",
+        "nctHint": "Optional, like NCT01234567.",
+        "minAge": "Minimum age",
+        "conditions": "Conditions (any of)",
+        "languages": "Languages (any of)",
+        "questions": "Pre-screen questions",
+        "questionsHint": "Yes or no, in the wording the ethics committee approved. Up to five. A question is asked in English when it has no approved wording in the patient's language.",
+        "qEn": "Question {n} (English)",
+        "qHi": "Question {n} (Hindi, optional)",
+        "eligible": "Answer that fits, question {n}",
+        "yes": "Yes",
+        "no": "No",
+        "approval": "Ethics approval reference, question {n}",
+        "addQuestion": "Add a question",
+        "create": "Save as draft",
+        "invalid": "Check the fields: each question needs English wording and an approval reference."
+      },
+      "nav": {
+        "matches": "Matches",
+        "trials": "Studies"
       }
     }
   }

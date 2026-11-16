@@ -38,6 +38,16 @@ export async function StaffShell({
             </Link>
           </nav>
         )}
+        {me.surfaces.includes('research') && (
+          <nav aria-label="Research" className="flex gap-4 text-sm font-semibold">
+            <Link href="/research" className="text-neel">
+              {ta('research.nav.matches')}
+            </Link>
+            <Link href="/research/trials" className="text-neel">
+              {ta('research.nav.trials')}
+            </Link>
+          </nav>
+        )}
         {me.surfaces.includes('admin') && (
           <nav aria-label="Admin">
             <Link href="/admin/data" className="text-sm font-semibold text-neel underline underline-offset-2">

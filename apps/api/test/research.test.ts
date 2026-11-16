@@ -225,6 +225,58 @@ describe('research consent through the API', () => {
     );
   });
 
+  it('the coordinator sets up a trial: closed criteria, approved questions, draft until recruiting', async () => {
+    const coord = await login('research_coordinator', {}, true);
+    const draft = {
+      sponsorId,
+      title: 'KIDNEY-VOICE',
+      therapeuticArea: 'nephrology',
+      nctId: 'NCT01234567',
+      criteria: [
+        { field: 'age_band_min', value: 65 },
+        { field: 'condition_any', value: ['ckd'] },
+        { field: 'language_any', value: ['hi', 'gu'] },
+      ],
+      questions: [
+        {
+          wording: { en: 'Do you see a kidney doctor?', hi: 'क्या आप किडनी के डॉक्टर को दिखाते हैं?' },
+          eligibleAnswer: 'yes',
+          approvalRef: 'IRB-7 v1',
+        },
+      ],
+    };
+    const bad = await coord.req('POST', '/api/research/trials', {
+      ...draft,
+      criteria: [{ field: 'condition_any', value: ['being_rich'] }],
+    });
+    expect(bad.json().error).toBe('bad_condition');
+    expect(
+      (
+        await coord.req('POST', '/api/research/trials', {
+          ...draft,
+          criteria: [{ field: 'zip_code', value: '07302' }],
+        })
+      ).statusCode,
+    ).toBe(400); // only the closed set: nothing that narrows to one person
+    const noEnglish = { ...draft, questions: [{ ...draft.questions[0], wording: { hi: 'क्या?' } }] };
+    expect((await coord.req('POST', '/api/research/trials', noEnglish)).statusCode).toBe(400);
+
+    const { id } = (await coord.req('POST', '/api/research/trials', draft)).json();
+    const list = (await coord.req('GET', '/api/research/trials')).json();
+    expect(list.find((t: { id: string }) => t.id === id)).toMatchObject({
+      status: 'draft',
+      sponsorName: 'Acme Pharma',
+      matched: 0,
+      questions: [{ eligibleAnswer: 'yes', approvalRef: 'IRB-7 v1' }],
+    });
+    const status = (s: string) => coord.req('POST', `/api/research/trials/${id}/status`, { status: s });
+    expect((await status('recruiting')).statusCode).toBe(204);
+    expect((await status('recruiting')).statusCode).toBe(409);
+    expect((await status('closed')).statusCode).toBe(204);
+    const nurse = await login('nurse', { practiceId: ids.practiceId }, true);
+    expect((await nurse.req('POST', '/api/research/trials', draft)).statusCode).toBe(403);
+  });
+
   it('withdrawal stops research at once: the doctor no longer sees the match', async () => {
     const raj = await login('patient', { patientId: rajId });
     const ov = (await raj.req('GET', '/api/research')).json();

@@ -112,7 +112,7 @@
 - **Alerts go to one webhook.** Eight rules and the routing are provisioned (RUNBOOK "Alerts"); the pager, the rota and escalation tiers are a hosting decision (GO_LIVE_CHECKLIST).
 - **Speech-task audio is built but off** (`TOMONI_SPEECH_AUDIO`, D-032), and untested against Twilio itself, like the rest of telephony. The simulator captures no audio, so simulator samples get labelled mock features. Counsel must also confirm D-009 (research inside a billed care call).
 - **New-diagnosis labels see only the claims window** (six months of Blue Button data): a condition diagnosed before it and not billed since can look new. A longer claims history or the problem list would tighten it.
-- **Pre-screen questions are entered by SQL** (there is no trial-setup screen yet); each needs its ethics approval reference (D-033).
+- **Studies are never edited after creation,** so approved wording stays as approved: to change one, the coordinator discards or closes it and drafts another. Only the closed criteria set exists (age, conditions, drugs, recent stay, language).
 - **The research protocol summary** is complete in English and Hindi only, and is a demo text; a real one comes from the IRB-approved consent document.
 - **Sponsor usage shows exact unit counts** because it is an invoice. It names no one, but together with a small funnel it can reveal that one person progressed. Counsel should confirm (add to D-010 review).
 - **Care-plan drafts start from templates** for common conditions. Staff edit goals and interventions in place; problems, medicines and contacts still come from the data.
@@ -126,7 +126,6 @@
 - **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.
 - **Medicine names** are simplified from RxNorm by a heuristic.
 - **Hindi copy:** the new strings also need native review. The other four Indic locales fall back to English.
-- **Family navigation:** still one page plus evidence. The activity log and family pages come in Phase 4.
 - **Warning thresholds** need founder review (D-019).
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
