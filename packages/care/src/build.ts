@@ -74,10 +74,38 @@ export async function draftCarePlan(db: Db, patientId: string, draftedBy: string
   return row!;
 }
 
-/** Sign a draft: the previous signed version is superseded in the same transaction. */
-export async function signCarePlan(db: Db, planId: string, physicianUserId: string) {
-  const [plan] = await db.select().from(schema.carePlan).where(eq(schema.carePlan.id, planId));
-  if (!plan || plan.status !== 'draft') return null;
+/** Edit a draft's goals and interventions. Null when it isn't a draft at that revision. */
+export async function editCarePlan(
+  db: Db,
+  planId: string,
+  revision: number,
+  edit: Pick<CarePlanBody, 'goals' | 'interventions'>,
+) {
+  const [plan] = await db.select().from(schema.carePlan).where(eq(schema.carePlan.id, planId)).for('update');
+  if (!plan || plan.status !== 'draft' || plan.revision !== revision) return null;
+  const [row] = await db
+    .update(schema.carePlan)
+    .set({ body: { ...plan.body, ...edit }, revision: revision + 1 })
+    .where(eq(schema.carePlan.id, planId))
+    .returning();
+  await audit(db, {
+    action: 'update',
+    entityType: 'care_plan',
+    entityId: planId,
+    patientId: plan.patientId,
+    purpose: 'treatment',
+    details: { edited: true, version: plan.version, revision: revision + 1 },
+  });
+  return row!;
+}
+
+/**
+ * Sign a draft at the revision the physician saw: the previous signed version is superseded in
+ * the same transaction. Null when there is no such draft, or it changed since.
+ */
+export async function signCarePlan(db: Db, planId: string, physicianUserId: string, revision: number) {
+  const [plan] = await db.select().from(schema.carePlan).where(eq(schema.carePlan.id, planId)).for('update');
+  if (!plan || plan.status !== 'draft' || plan.revision !== revision) return null;
   await db
     .update(schema.carePlan)
     .set({ status: 'superseded' })

@@ -146,9 +146,9 @@ describe('care plans and APCM months', () => {
     expect(plan.body.medications).toEqual(['metformin hydrochloride 500 MG Oral Tablet']);
     expect(plan.body.contacts).toEqual([{ name: 'Asha Patel', role: 'daughter' }]);
     await expect(
-      withScope('app', as('nurse'), (d) => signCarePlan(d, plan.id, users.nurse!)),
+      withScope('app', as('nurse'), (d) => signCarePlan(d, plan.id, users.nurse!, 0)),
     ).rejects.toThrow();
-    const signed = await withScope('app', as('doc'), (d) => signCarePlan(d, plan.id, users.doc!));
+    const signed = await withScope('app', as('doc'), (d) => signCarePlan(d, plan.id, users.doc!, 0));
     expect(signed).toMatchObject({ status: 'signed', version: 1 });
   });
 
@@ -161,7 +161,7 @@ describe('care plans and APCM months', () => {
         .where(eq(schema.carePlan.id, signed!.id)),
     ).rejects.toThrow();
     const v2 = await withScope('app', as('nurse'), (d) => draftCarePlan(d, patientId, 'agent'));
-    await withScope('app', as('doc'), (d) => signCarePlan(d, v2.id, users.doc!));
+    await withScope('app', as('doc'), (d) => signCarePlan(d, v2.id, users.doc!, 0));
     const plans = await db.select().from(schema.carePlan).orderBy(schema.carePlan.version);
     expect(plans.map((p) => [p.version, p.status])).toEqual([
       [1, 'superseded'],

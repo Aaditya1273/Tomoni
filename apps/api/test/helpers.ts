@@ -57,7 +57,7 @@ export class Client {
   ) {}
 
   async req(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT',
     url: string,
     body?: unknown,
     opts: { csrf?: boolean; origin?: string | null } = {},

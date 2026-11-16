@@ -87,10 +87,25 @@ describe('desk: patient, care plan, APCM', () => {
     const draft = (await nurse.req('POST', `/api/desk/patients/${patientId}/care-plan/draft`)).json();
     expect(draft).toMatchObject({ status: 'draft', version: 1, draftedBy: 'agent' });
     expect(draft.body.problems.map((p: { code: string }) => p.code)).toEqual(['diabetes', 'heart_failure']);
-    expect((await nurse.req('POST', `/api/desk/care-plans/${draft.id}/sign`)).statusCode).toBe(403);
-    expect((await doctor.req('POST', `/api/desk/care-plans/${draft.id}/sign`)).json()).toMatchObject({
-      status: 'signed',
-    });
+    const sign = (c: typeof nurse, revision: number) =>
+      c.req('POST', `/api/desk/care-plans/${draft.id}/sign`, { revision });
+    expect((await sign(nurse, 0)).statusCode).toBe(403);
+
+    // The nurse edits the goals while the doctor has revision 0 open: signing 0 is refused.
+    const goals = ['A1c under 8 by March, as Dr. Rao set.', 'Walk 20 minutes a day.'];
+    const put = (revision: number, g = goals) =>
+      nurse.req('PUT', `/api/desk/care-plans/${draft.id}`, {
+        revision,
+        goals: g,
+        interventions: draft.body.interventions,
+      });
+    expect((await put(0)).json()).toMatchObject({ revision: 1, body: { goals } });
+    expect((await put(0)).statusCode).toBe(409); // a stale editor can't overwrite it either
+    expect((await sign(doctor, 0)).json()).toMatchObject({ error: 'changed' });
+    expect((await put(1, ['x'.repeat(301)])).statusCode).toBe(400);
+
+    expect((await sign(doctor, 1)).json()).toMatchObject({ status: 'signed', revision: 1, body: { goals } });
+    expect((await put(1)).statusCode).toBe(409); // signed plans never change
   });
 
   it('builds the month, exports evidence safely, marks billed, and reports revenue', async () => {

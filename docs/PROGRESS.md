@@ -115,7 +115,7 @@
 - **The voice pre-screen** (ethics-approved questions on the daily call) is not built; the doctor can introduce from a match directly. It arrives with Phase 6's call changes.
 - **The research protocol summary** is complete in English and Hindi only, and is a demo text; a real one comes from the IRB-approved consent document.
 - **Sponsor usage shows exact unit counts** because it is an invoice. It names no one, but together with a small funnel it can reveal that one person progressed. Counsel should confirm (add to D-010 review).
-- **Care-plan goals are templates** for common conditions; the physician edits by drafting a new version (no inline editor yet).
+- **Care-plan drafts start from templates** for common conditions. Staff edit goals and interventions in place; problems, medicines and contacts still come from the data.
 - **APCM rates in the report are national**; local adjustments (GPCI) are not applied.
 - **Live LLM eval not run.** No Anthropic credentials on this machine. Run `pnpm --filter @tomoni/voice eval` with credentials before turning on `TOMONI_ADAPTER_LLM=real`.
 - **Real telephony is untested against Twilio.** The adapter and signed webhooks are built and tested against Twilio's documented signature example only. Speech-to-text uses Twilio's built-in recognition until the vendor decision (D-007).

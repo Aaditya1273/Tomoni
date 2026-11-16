@@ -108,6 +108,7 @@ export const carePlan = care.table('care_plan', {
   version: integer().notNull(),
   status: text().$type<'draft' | 'signed' | 'superseded'>().notNull().default('draft'),
   body: jsonb().$type<CarePlanBody>().notNull(),
+  revision: integer().notNull().default(0),
   draftedBy: text('drafted_by').notNull(),
   signedBy: uuid('signed_by'),
   signedAt: ts('signed_at'),

@@ -4,6 +4,7 @@ import type { DeskPatient } from '@tomoni/contracts';
 import { StatusPill } from '@tomoni/ui';
 import { apiGet, requireSurface } from '@tomoni/web-shared/server';
 import { StaffShell } from '@/components/StaffShell';
+import { CarePlanEditor } from '@/components/desk/CarePlanEditor';
 import { Decide } from '@/components/desk/Decide';
 import { PgxForm } from '@/components/desk/PgxForm';
 import { drugName } from '@/lib/medicines';
@@ -62,9 +63,16 @@ export default async function DeskPatientPage({ params }: { params: Promise<{ id
                   </ul>
                 </div>
               ))}
+              {plan.status === 'draft' && <CarePlanEditor key={plan.revision} plan={plan} />}
               {plan.status === 'draft' && isDoctor && (
                 <Decide
-                  options={[{ label: t('patient.sign'), path: `/api/desk/care-plans/${plan.id}/sign` }]}
+                  options={[
+                    {
+                      label: t('patient.sign'),
+                      path: `/api/desk/care-plans/${plan.id}/sign`,
+                      body: { revision: plan.revision }, // exactly what is on screen
+                    },
+                  ]}
                 />
               )}
             </div>

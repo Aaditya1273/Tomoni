@@ -96,8 +96,18 @@ test.describe.serial('one week in Tomoni', () => {
       await doc.getByRole('button', { name: 'Draft care plan' }).click();
       await expect(doc.locator('[data-plan-status="draft"]')).toBeVisible();
     }
+    // The doctor edits a goal in place, then signs exactly what is on screen.
+    await doc.getByRole('button', { name: 'Edit goals and interventions' }).click();
+    const goals = doc.getByLabel('Goals');
+    await goals.fill(`${await goals.inputValue()}\nWalk 20 minutes every morning with Asha.`);
+    await expectAccessible(doc);
+    await doc.getByRole('button', { name: 'Save draft' }).click();
+    // The saved list, not the textarea: the page has the new revision only once this renders.
+    await expect(
+      doc.locator('[data-plan-status="draft"] li').filter({ hasText: 'Walk 20 minutes every morning' }),
+    ).toHaveCount(1);
     await doc.getByRole('button', { name: 'Sign care plan' }).click();
-    await expect(doc.locator('[data-plan-status="signed"]')).toBeVisible();
+    await expect(doc.locator('[data-plan-status="signed"]')).toContainText('Walk 20 minutes every morning');
     await doc.getByRole('link', { name: 'APCM billing' }).click();
     await doc.getByRole('button', { name: 'Check this month' }).click();
     await expect(doc.locator('tr').filter({ hasText: 'Raj Patel' })).toContainText(/Ready to bill|Billed/);

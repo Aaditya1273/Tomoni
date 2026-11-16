@@ -51,7 +51,10 @@ export function DeskQueue({ initial, canSign }: { initial: QueueItem[]; canSign:
       } else if (i.kind === 'approval' && canSign)
         await api(`/api/actions/${i.id}/decision`, { method: 'POST', body: { decision: 'approve' } });
       else if (i.kind === 'care_plan' && canSign)
-        await api(`/api/desk/care-plans/${i.id}/sign`, { method: 'POST' });
+        await api(`/api/desk/care-plans/${i.id}/sign`, {
+          method: 'POST',
+          body: { revision: i.revision ?? 0 },
+        });
       await refresh();
     },
     [canSign, refresh],

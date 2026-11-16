@@ -382,7 +382,13 @@
         "draft": "draft, not signed",
         "signed": "signed",
         "superseded": "replaced"
-      }
+      },
+      "edit": "Edit goals and interventions",
+      "onePerLine": "One per line.",
+      "save": "Save draft",
+      "cancel": "Cancel",
+      "changed": "Someone changed or signed this draft. Reload to see the latest.",
+      "saveFailed": "Couldn't save. Try again."
     },
     "billing": {
       "title": "APCM billing",

@@ -23,6 +23,7 @@ import {
   draftCarePlan,
   latestPlans,
   monthBounds,
+  editCarePlan,
   signCarePlan,
 } from '@tomoni/care';
 import type { RequestScope } from '@tomoni/core';
@@ -42,7 +43,9 @@ const planItem = (p: typeof schema.carePlan.$inferSelect) => ({
   body: p.body,
   draftedBy: p.draftedBy === 'agent' ? 'agent' : 'staff',
   signedAt: p.signedAt?.toISOString() ?? null,
+  revision: p.revision,
 });
+const Lines = z.array(z.string().trim().min(1).max(300)).max(20);
 
 export const deskRoutes =
   (deps: { queue: Queue }): FastifyPluginAsyncZod =>
@@ -80,7 +83,8 @@ export const deskRoutes =
             FROM care.action a LEFT JOIN care.warning w ON w.id = a.warning_id
            WHERE a.state = 'awaiting_approval' AND a.approval_class = 'physician' AND a.patient_id IN (SELECT id FROM pts)
           UNION ALL
-          SELECT 'care_plan', cp.id, cp.patient_id, 4, cp.created_at::text, NULL, NULL, NULL, NULL, NULL, NULL, cp.version
+          SELECT 'care_plan', cp.id, cp.patient_id, 4, cp.created_at::text, NULL, NULL, NULL, cp.revision::text,
+                 NULL, NULL, cp.version
             FROM care.care_plan cp WHERE cp.status = 'draft' AND cp.patient_id IN (SELECT id FROM pts)
           UNION ALL
           -- Gene-drug mismatches go to physicians only (Gene-to-Pill).
@@ -136,7 +140,8 @@ export const deskRoutes =
                 }
               : {}),
             ...(r.kind === 'approval' ? { skill: r.skill ?? '', drug: r.drug, warningId: r.warning_id } : {}),
-            ...(r.kind === 'care_plan' ? { version: r.version ?? 1 } : {}),
+            // For care_plan, skill carries the revision (the union reuses columns).
+            ...(r.kind === 'care_plan' ? { version: r.version ?? 1, revision: Number(r.skill ?? 0) } : {}),
             // The union reuses columns: for gene_drug, flag_class = gene, flag_status = phenotype, channel = guideline.
             ...(r.kind === 'gene_drug'
               ? {
@@ -294,6 +299,30 @@ export const deskRoutes =
       },
     );
 
+    app.put(
+      '/api/desk/care-plans/:id',
+      {
+        preHandler: STAFF,
+        schema: {
+          tags: ['desk'],
+          params: Id,
+          body: z.strictObject({ revision: z.int().min(0), goals: Lines, interventions: Lines }),
+          response: { 200: CarePlanItem, 409: ErrorBody },
+        },
+      },
+      async (req, reply) => {
+        const { revision, ...edit } = req.body;
+        const plan = await withScope('app', req.auth!.scope, (db) =>
+          editCarePlan(db, req.params.id, revision, edit),
+        );
+        return plan
+          ? planItem(plan)
+          : reply
+              .code(409)
+              .send({ error: 'changed', message: 'This draft was signed or changed. Reload it first.' });
+      },
+    );
+
     app.post(
       '/api/desk/care-plans/:id/sign',
       {
@@ -301,17 +330,20 @@ export const deskRoutes =
         schema: {
           tags: ['desk'],
           params: Id,
-          response: { 200: CarePlanItem, 403: ErrorBody, 404: ErrorBody },
+          body: z.strictObject({ revision: z.int().min(0) }),
+          response: { 200: CarePlanItem, 403: ErrorBody, 409: ErrorBody },
         },
       },
       async (req, reply) => {
         try {
           const signed = await withScope('app', req.auth!.scope, (db) =>
-            signCarePlan(db, req.params.id, req.auth!.userId),
+            signCarePlan(db, req.params.id, req.auth!.userId, req.body.revision),
           );
           return signed
             ? planItem(signed)
-            : reply.code(404).send({ error: 'not_found', message: 'No draft with that id.' });
+            : reply
+                .code(409)
+                .send({ error: 'changed', message: 'This draft was signed or changed since you opened it.' });
         } catch {
           return reply
             .code(403)

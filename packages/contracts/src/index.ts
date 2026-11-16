@@ -339,6 +339,8 @@ export const CarePlanItem = z.object({
   }),
   draftedBy: z.string(),
   signedAt: z.string().nullable(),
+  /** Bumped by each edit of a draft; signing names the revision the physician saw. */
+  revision: z.number(),
 });
 export type CarePlanItem = z.infer<typeof CarePlanItem>;
 export const TimelineEvent = z.object({
@@ -406,6 +408,7 @@ export const QueueItem = z.object({
   warningId: z.uuid().nullable().optional(),
   // care plan
   version: z.number().optional(),
+  revision: z.number().optional(),
   // gene-drug warning (doctor only)
   gene: z.string().optional(),
   phenotype: z.string().optional(),
