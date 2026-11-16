@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { systemScope } from '@tomoni/core';
-import { closePools, ownerDb, schema, withScope } from '@tomoni/db';
+import { closePools, hashFor, ownerDb, pool, schema, withScope } from '@tomoni/db';
 import { matchTrials } from '@tomoni/trials';
 import { buildServer } from '../src/server';
 import { Client, makePracticeAndHousehold, ORIGIN, PASSWORD, totp } from './helpers';
@@ -165,6 +165,64 @@ describe('research consent through the API', () => {
       db.execute(sql`INSERT INTO auth.role_grant (user_id, role, practice_id)
         SELECT id, 'research_coordinator', ${ids.practiceId} FROM auth.user_account LIMIT 1`),
     ).rejects.toThrow();
+  });
+
+  it('the daily call pre-screens with the approved questions; the match moves and the work is billed once', async () => {
+    const t = await db.execute<{
+      id: string;
+    }>(sql`INSERT INTO research.trial (sponsor_id, title, therapeutic_area)
+      VALUES (${sponsorId}, 'AF-VOICE', 'cardiology') RETURNING id`);
+    const af = t.rows[0]!.id;
+    await db.execute(sql`INSERT INTO research.prescreen_question
+      (trial_id, ordinal, wording, eligible_answer, approval_ref) VALUES
+      (${af}, 1, '{"en":"Has a doctor ever told you that you have an irregular heartbeat?"}', 'yes', 'IRB-1 am.3'),
+      (${af}, 2, '{"en":"Are you taking a blood thinner today?"}', 'no', 'IRB-1 am.3')`);
+    const m = await db.execute<{ id: string }>(sql`INSERT INTO research.trial_match (trial_id, research_pid)
+      SELECT ${af}, research_pid FROM research.research_id WHERE patient_id = ${rajId} RETURNING id`);
+    const matchId = m.rows[0]!.id;
+    await db.insert(schema.contactConsent).values({
+      patientId: rajId,
+      channel: 'voice',
+      phoneHash: hashFor.phone('732-555-0177'),
+      givenByKind: 'patient',
+      givenAt: new Date(),
+    });
+
+    const nurse = await login('nurse', { practiceId: ids.practiceId }, true);
+    const { callId } = (await nurse.req('POST', '/api/sim/calls', { patientId: rajId })).json();
+    await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: "I'm fine" });
+    const offer = (await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'yes' })).json();
+    expect(offer.say.join(' ')).toContain('irregular heartbeat');
+    await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'yes' });
+    const end = (await nurse.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'no' })).json();
+    expect(end).toMatchObject({ ended: true }); // the outcome is research data, not in the care response
+
+    const status = await db.execute<{ status: string }>(
+      sql`SELECT status FROM research.trial_match WHERE id = ${matchId}`,
+    );
+    expect(status.rows[0]!.status).toBe('prescreened');
+    const units = await db.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM research.service_event
+      WHERE trial_match_id = ${matchId} AND unit = 'prescreen_completed'`);
+    expect(units.rows[0]!.n).toBe(1);
+    const [call] = await db
+      .select()
+      .from(schema.call)
+      .where(sql`id = ${callId}`);
+    expect(call!.transcript).not.toMatch(/irregular heartbeat|blood thinner/);
+    // Called again (a replayed turn), nothing moves twice.
+    const again = await db.execute<{ s: string | null }>(
+      sql`SELECT research.record_prescreen(${callId}, ${matchId}, '{}'::jsonb) AS s`,
+    );
+    expect(again.rows[0]!.s).toBeNull();
+    for (const role of ['app', 'sponsor'] as const)
+      await expect(pool(role).query('SELECT 1 FROM research.prescreen_answer')).rejects.toThrow(
+        /permission denied/,
+      );
+    // The doctor sees the pre-screened person to introduce.
+    const doc = await login('physician', { practiceId: ids.practiceId }, true);
+    expect((await doc.req('GET', '/api/desk/trial-intros')).json()).toContainEqual(
+      expect.objectContaining({ trialTitle: 'AF-VOICE', status: 'prescreened' }),
+    );
   });
 
   it('withdrawal stops research at once: the doctor no longer sees the match', async () => {

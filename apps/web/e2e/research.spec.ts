@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { closePools, ownerDb, sql } from '@tomoni/db';
 import { expectAccessible, PASSWORD, passMfa, signIn, snap } from './helpers';
 
 /**
@@ -7,6 +8,8 @@ import { expectAccessible, PASSWORD, passMfa, signIn, snap } from './helpers';
  * sponsor sees only rounded counts and billed work, and Raj can leave at any time.
  */
 const PORTAL = 'http://localhost:3101';
+
+test.afterAll(closePools);
 
 test.describe.serial('Trial Bridge, end to end', () => {
   test.skip(({ isMobile }) => isMobile, 'state-changing funnel, run once on desktop');
@@ -41,6 +44,35 @@ test.describe.serial('Trial Bridge, end to end', () => {
     }).toPass({ timeout: 20_000 });
     await expect(card).toContainText('Raj Patel may fit HEART-SA');
     matchId = (await card.getAttribute('data-id'))!;
+
+    // Raj's next daily call pre-screens him with the study's approved questions (D-033).
+    const sim = await staff(browser, 'nurse.priya@demo.tomoni.test');
+    await sim.goto('/desk/simulator');
+    await sim.getByLabel('Patient').selectOption({ label: 'Raj Patel (gu)' });
+    await sim.getByRole('button', { name: 'Start call' }).click();
+    const transcript = sim.getByRole('list', { name: 'Transcript' });
+    const reply = async (text: string) => {
+      const n = await transcript.locator('li').count();
+      await sim.getByLabel('Reply as the patient').fill(text);
+      await sim.getByRole('button', { name: 'Send' }).click();
+      // The patient's line shows at once; wait for Tomoni's answer too.
+      await expect.poll(() => transcript.locator('li').count()).toBeGreaterThan(n + 1);
+    };
+    await reply("I'm fine");
+    await reply('yes');
+    await reply('no thanks'); // his two scripted care items come first: the renewal…
+    await reply('no thanks'); // …and the premium change
+    await expect(transcript).toContainText('for the research registry you joined');
+    await expect(transcript).toContainText('heart disease or heart failure?');
+    await reply('yes');
+    await expect(transcript).toContainText('walk across a room without help?');
+    await reply('haan');
+    await expect(transcript).toContainText('your doctor will tell you about it');
+    const { rows } = await ownerDb().execute<{ status: string }>(
+      sql`SELECT status FROM research.trial_match WHERE id = ${matchId}`,
+    );
+    expect(rows[0]!.status).toBe('prescreened');
+    await doc.reload();
     await card.getByRole('button', { name: 'Introduced at visit' }).click();
     await expect(card).toHaveCount(0);
   });

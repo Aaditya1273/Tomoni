@@ -211,3 +211,67 @@ describe('India bridge (D-027): the right numbers, and the family acts', () => {
     expect(said.at(-1)).not.toMatch(/911|988/);
   });
 });
+
+describe('voice pre-screen (Trial Bridge): research, after a clean call', () => {
+  const prescreen = {
+    matchId: 'm1',
+    questions: [
+      { id: 'q1', text: 'Have you had chest pain while walking in the last month?' },
+      { id: 'q2', text: 'Are you taking a blood thinner?' },
+    ],
+  };
+  const seen: string[] = [];
+  const spy: ConversationLLM = {
+    promptVersion: 'spy',
+    fill: async (step, u) => {
+      seen.push(u);
+      return llm.fill(step, u);
+    },
+  };
+
+  it('asks each approved question, records yes/no by id, and keeps both out of the transcript', async () => {
+    seen.length = 0;
+    const { state, said } = await run(
+      ctx({ upcoming: [], prescreen }),
+      ['good', 'yes', 'जी नहीं', 'haan'],
+      spy,
+    );
+    expect(said.join(' ')).toContain('for the research registry you joined');
+    expect(said.join(' ')).toContain('Are you taking a blood thinner?');
+    expect(state.slots.prescreen).toMatchObject({ status: 'done', answers: { q1: 'no', q2: 'yes' } });
+    expect(seen).toEqual(['good', 'yes']); // the LLM never hears the answers
+    const transcript = state.turns.map((t) => t.text).join(' ');
+    expect(transcript).not.toMatch(/chest pain while walking|blood thinner|जी नहीं|haan/);
+    expect(transcript).toContain('[research pre-screen]');
+    expect(state.step).toBe('ended');
+  });
+
+  it('skip stops it; two unclear answers stop it; nothing is half-recorded as done', async () => {
+    const a = await run(ctx({ upcoming: [], prescreen }), ['good', 'yes', 'skip']);
+    expect(a.state.slots.prescreen).toMatchObject({ status: 'skipped', answers: {} });
+    const b = await run(ctx({ upcoming: [], prescreen }), ['good', 'yes', 'yes', 'maybe', 'not sure']);
+    expect(b.state.slots.prescreen).toMatchObject({ status: 'skipped', answers: { q1: 'yes' } });
+  });
+
+  it('an emergency inside the pre-screen ends the call with 911 and a flag', async () => {
+    const { flags, said, state } = await run(ctx({ upcoming: [], prescreen }), [
+      'good',
+      'yes',
+      'I have chest pain now',
+    ]);
+    expect(flags[0]).toMatchObject({ class: 'emergency', urgency: 1 });
+    expect(said.at(-1)).toContain('call 911 now');
+    expect(state.outcome).toBe('escalated');
+  });
+
+  it('comes after the speech task, and never after a flagged call', async () => {
+    const both = await run(ctx({ upcoming: [], prescreen, speechTask: true }), [
+      'good',
+      'yes',
+      'I cooked dal',
+    ]);
+    expect(both.state.step).toBe('prescreen');
+    const flagged = await run(ctx({ upcoming: [], prescreen }), ['I feel dizzy since morning']);
+    expect(flagged.state.slots.prescreen).toBeUndefined();
+  });
+});

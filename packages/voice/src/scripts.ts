@@ -4,7 +4,7 @@
  * English and Hindi are complete; the other shipped locales fall back to English per line until
  * native speakers write them (PROGRESS). Bump SCRIPT_VERSION on any wording change.
  */
-export const SCRIPT_VERSION = 'daily-call.v3';
+export const SCRIPT_VERSION = 'daily-call.v4';
 
 export type ScriptLocale = 'en' | 'hi';
 export type Region = 'US' | 'IN';
@@ -35,6 +35,8 @@ interface Script {
   selfHarm: string;
   speechTask: string;
   speechThanks: string;
+  prescreenIntro: string;
+  prescreenThanks: string;
   closing: string;
   voicemail: string;
   familyEmergency: string;
@@ -63,6 +65,9 @@ const en: Script = {
   speechTask:
     "One more thing, for the research study you joined. It is not part of your care, and it's fine to say skip. For about 20 seconds, please tell me what you did yesterday.",
   speechThanks: 'Thank you, that helps the study.',
+  prescreenIntro:
+    "One more thing, for the research registry you joined. It isn't part of your care, and it's fine to say skip. Please answer yes or no.",
+  prescreenThanks: 'Thank you. If the study may fit, your doctor will tell you about it.',
   closing: 'Thank you, {name}. Tomoni will call again tomorrow. Goodbye.',
   // No name or health detail: a voicemail may be heard by anyone.
   voicemail:
@@ -103,6 +108,9 @@ const hi: Script = {
   speechTask:
     'एक और बात, उस रिसर्च स्टडी के लिए जिसमें आप जुड़े हैं। यह आपके इलाज का हिस्सा नहीं है, और आप "छोड़ो" कह सकते हैं। लगभग 20 सेकंड के लिए, कृपया बताइए कि आपने कल क्या किया।',
   speechThanks: 'धन्यवाद, इससे स्टडी को मदद मिलती है।',
+  prescreenIntro:
+    'एक और बात, उस रिसर्च रजिस्ट्री के लिए जिसमें आप जुड़े हैं। यह आपके इलाज का हिस्सा नहीं है, और आप "छोड़ो" कह सकते हैं। कृपया हाँ या ना में जवाब दीजिए।',
+  prescreenThanks: 'धन्यवाद। अगर यह स्टडी आपके लिए सही हो सकती है, तो आपके डॉक्टर आपको इसके बारे में बताएँगे।',
   closing: 'धन्यवाद, {name}। Tomoni कल फिर कॉल करेगा। नमस्ते।',
   voicemail: 'मैं Tomoni हूँ, आपके डॉक्टर के दफ़्तर से एक स्वचालित सहायक, रोज़ की बातचीत के लिए। हम कल फिर कॉल करेंगे।',
   familyEmergency:

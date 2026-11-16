@@ -14,6 +14,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 
 ## IRB and research
 - [ ] An IRB-approved protocol for the registry, Trial Bridge and Voice Lab, with the consent document the plain summaries are written from.
+- [ ] The IRB approves each trial's voice pre-screen questions and every translation of them (D-033).
 - [ ] Staff the research coordinator role (built: matched names only, every read and move audited) and train them on the protocol.
 - [ ] Data use agreements with each sponsor. Counsel confirms the aggregate-only portal and small-cell suppression (rule 2.9).
 

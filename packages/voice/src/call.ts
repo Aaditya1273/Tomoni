@@ -1,7 +1,7 @@
 /**
  * The daily call as a state machine (BUILD_PROMPT §5.4, rules 2.1 and 2.10).
  *
- *   disclosure+wellbeing → meds → upcoming × n → [speech_task] → closing → ended
+ *   disclosure+wellbeing → meds → upcoming × n → [speech_task] → [prescreen × q] → closing → ended
  *
  * The speech task is research (rule 2.8): offered only with active speech-task consent, only on a
  * call that ended without a flag, never read by the LLM, and kept out of the care transcript.
@@ -11,12 +11,16 @@
  * a symptom or medication change opens a nurse flag and goes straight to the closing. There is
  * no edge from a fired flag back to an admin step. The LLM's own output is matched again, so it
  * can add a flag but never remove one.
+ *
+ * The pre-screen is research too (Trial Bridge): a study's ethics-approved yes/no questions, only
+ * with trial-matching consent and after a clean call. Answers are parsed by fixed patterns, never
+ * by the LLM, and the care transcript keeps markers instead of the questions and answers.
  */
 import { matchSafety, topClass, type SafetyClass, type SafetyHit } from '@tomoni/core';
 import { UNCLEAR, type ConversationLLM, type SlotStep } from './llm';
 import { itemLine as itemFor, line as lineFor, type Region, type UpcomingKind } from './scripts';
 
-export type Step = 'wellbeing' | 'meds' | 'upcoming' | 'speech_task' | 'ended';
+export type Step = 'wellbeing' | 'meds' | 'upcoming' | 'speech_task' | 'prescreen' | 'ended';
 export type Outcome = 'completed' | 'escalated';
 
 export interface CallContext {
@@ -30,6 +34,8 @@ export interface CallContext {
   speechTask?: boolean;
   /** The household's region: India gets its own emergency numbers and family-led help. */
   region?: Region;
+  /** An open trial match's approved questions, in the patient's language (research consent checked). */
+  prescreen?: { matchId: string; questions: { id: string; text: string }[] };
 }
 
 export interface Turn {
@@ -57,6 +63,16 @@ export interface CallState {
     declined?: string[];
     /** Research only: when the task was offered, and how it went. Never the words. */
     speech?: { offeredAt: string; status?: 'done' | 'skipped'; ms?: number };
+    /** Research only: answers by question id, never the words. */
+    prescreen?: {
+      matchId: string;
+      offeredAt: string;
+      index: number;
+      retried: boolean;
+      answers: Record<string, 'yes' | 'no'>;
+      status?: 'done' | 'skipped';
+      ms?: number;
+    };
   };
   turns: Turn[];
   outcome: Outcome | null;
@@ -80,6 +96,16 @@ const line = (ctx: CallContext, key: Parameters<typeof lineFor>[1], vars?: Recor
 const itemLine = (ctx: CallContext, kind: UpcomingKind, drug: string) =>
   itemFor(ctx.locale, kind, drug, ctx.region);
 const SKIP = /^(skip|no|no thanks|not today|नहीं|छोड़ो|छोड़िए|आज नहीं)[\s.!।]*$/i;
+// Pre-screen answers: fixed patterns, checked in this order ("जी नहीं" is a no, not a yes).
+const END = '(?=$|[\\s.,!?।])';
+const PS_SKIP = new RegExp(`^(skip|not today|छोड़ो|छोड़िए|आज नहीं)${END}`, 'i');
+const PS_NO = new RegExp(`^(no|nope|nah|nahi|nahin|जी नहीं|नहीं|ना)${END}`, 'i');
+const PS_YES = new RegExp(`^(yes|yeah|yep|yup|haan|han|जी हाँ|जी हां|हाँ|हां|जी)${END}`, 'i');
+export const prescreenAnswer = (u: string): 'yes' | 'no' | 'skip' | null => {
+  const t = u.trim();
+  return PS_SKIP.test(t) ? 'skip' : PS_NO.test(t) ? 'no' : PS_YES.test(t) ? 'yes' : null;
+};
+const MARK = '[research pre-screen]';
 
 /** Opening: the AI disclosure always comes first (rule 2.10), then the first question. */
 export function startCall(ctx: CallContext): { state: CallState; say: string[] } {
@@ -124,6 +150,10 @@ export async function takeTurn(
   if (prev.step === 'ended') throw new Error('call has ended');
   const state: CallState = structuredClone(prev);
   const say: string[] = [];
+  const research = new Set<number>(); // indexes of `say` lines kept out of the care transcript
+  const sayResearch = (...lines: string[]) => {
+    for (const l of lines) research.add(say.push(l) - 1);
+  };
   const flags: FlagDraft[] = [];
   const v = { name: ctx.patientName, practice: ctx.practiceName };
   state.turns.push({ who: 'caller', text: utterance, at: now() });
@@ -136,12 +166,24 @@ export async function takeTurn(
     say.push(line(ctx, 'closing', v));
     end('completed');
   };
-  // A clean finish may offer the research task; a flagged call goes straight to close().
+  // A clean finish may offer the research tasks, one after the other; a flagged call goes
+  // straight to close().
   const finish = () => {
-    if (!ctx.speechTask || state.slots.speech) return close();
-    state.step = 'speech_task';
-    state.slots.speech = { offeredAt: now() };
-    say.push(line(ctx, 'speechTask'));
+    if (ctx.speechTask && !state.slots.speech) {
+      state.step = 'speech_task';
+      state.slots.speech = { offeredAt: now() };
+      say.push(line(ctx, 'speechTask'));
+    } else if (ctx.prescreen?.questions.length && !state.slots.prescreen) {
+      state.step = 'prescreen';
+      state.slots.prescreen = {
+        matchId: ctx.prescreen.matchId,
+        offeredAt: now(),
+        index: 0,
+        retried: false,
+        answers: {},
+      };
+      sayResearch(line(ctx, 'prescreenIntro'), ctx.prescreen.questions[0]!.text);
+    } else close();
   };
 
   // 1. Safety first, on the raw words.
@@ -162,7 +204,29 @@ export async function takeTurn(
     sp.ms = sp.status === 'done' ? Math.min(120_000, Date.now() - Date.parse(sp.offeredAt)) : 0;
     state.turns[state.turns.length - 1]!.text = '[research speech task]';
     if (sp.status === 'done') say.push(line(ctx, 'speechThanks'));
-    close();
+    finish();
+  } else if (state.step === 'prescreen') {
+    const ps = state.slots.prescreen!;
+    const qs = ctx.prescreen?.questions ?? [];
+    state.turns[state.turns.length - 1]!.text = MARK;
+    const a = prescreenAnswer(utterance);
+    const stop = (status: 'done' | 'skipped') => {
+      ps.status = status;
+      ps.ms = Math.min(600_000, Date.now() - Date.parse(ps.offeredAt));
+      if (status === 'done') sayResearch(line(ctx, 'prescreenThanks'));
+      close();
+    };
+    if (a === 'skip' || (a === null && ps.retried) || !qs[ps.index]) stop('skipped');
+    else if (a === null) {
+      ps.retried = true;
+      sayResearch(line(ctx, 'unclear'), qs[ps.index]!.text);
+    } else {
+      ps.answers[qs[ps.index]!.id] = a;
+      ps.index++;
+      ps.retried = false;
+      if (qs[ps.index]) sayResearch(qs[ps.index]!.text);
+      else stop('done');
+    }
   } else {
     // 2. Only now may the LLM read it, and only to fill this step's slots.
     const step = state.step as SlotStep;
@@ -216,7 +280,9 @@ export async function takeTurn(
     }
   }
 
-  for (const text of say) state.turns.push({ who: 'tomoni', text, at: now() });
+  say.forEach((text, i) =>
+    state.turns.push({ who: 'tomoni', text: research.has(i) ? MARK : text, at: now() }),
+  );
   return { state, say, flags };
 }
 

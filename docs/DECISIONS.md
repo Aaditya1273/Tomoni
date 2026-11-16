@@ -36,6 +36,7 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-030 | India family plan: $29 a month, Stripe Checkout, calls gated on payment with a past-due grace | NEEDS-FOUNDER-REVIEW |
 | D-031 | The India call: 112 and Tele-MANAS, the family is the one who acts | NEEDS-CLINICAL-REVIEW |
 | D-032 | Voice Lab audio: the patient's side of the speech task only, off until counsel signs off | NEEDS-COUNSEL-REVIEW |
+| D-033 | Voice pre-screen: ethics-approved yes/no questions on the daily call | NEEDS-IRB-REVIEW |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -189,4 +190,11 @@ Speech features need audio. On a phone call, the speech task now records the pat
 - **Only the task:** recording starts when the task is offered and stops when it ends. Tomoni's own voice is never recorded.
 - **What happens to the audio:** a task that ends with a sample queues `research.audio`. The worker fetches the WAV, accepts only 16-bit PCM under 8 MB, stores it AES-256-GCM encrypted under the pseudonym (`research/audio/<research_pid>/<sample>.wav`), and deletes the vendor's copy. A skipped or flagged task, a withdrawal before storage, or a hang-up mid-task deletes the vendor's copy instead. The nightly job sends stored audio to the feature service.
 - **Still to decide:** whether a withdrawal deletes stored audio or only hides it (RLS hides it today; the consent document decides), Twilio's own retention settings, and the research bucket's production home (S3 with its own key, D-005).
+
+## D-033: Voice pre-screen (NEEDS-IRB-REVIEW)
+Trial Bridge step 2 now runs on the daily call. With active trial-matching consent and an open match, a clean call ends with the study's yes/no questions, after the speech task if there is one.
+- **Approved words only:** each question carries its ethics approval reference and its approved wording per language. English is used when a language has no approved wording. The LLM never writes, reads or hears them: answers are parsed by fixed yes/no patterns, an unclear answer is asked once more, and "skip" stops the pre-screen.
+- **Research, not care:** the safety matcher runs first on every answer. The questions and answers appear in the care transcript only as `[research pre-screen]`, their seconds are kept out of APCM care time, and the answers sit in the research schema under the pseudonym, readable by the worker role only while consent holds.
+- **Outcome:** a complete pre-screen with every answer as approved moves the match to `prescreened`, recorded as one `prescreen_completed` unit of work. Any other answer moves it to `ineligible`. A partial or skipped pre-screen records nothing. The doctor then sees pre-screened people to introduce, as before.
+- **Still to decide:** the IRB approves each trial's questions and translations, and whether an ineligible person may be re-screened when a trial amends its criteria.
 

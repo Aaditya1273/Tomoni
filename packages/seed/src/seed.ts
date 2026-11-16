@@ -491,6 +491,16 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
     (${trial!.id}, 'age_band_min', '65'),
     (${trial!.id}, 'condition_any', '["coronary_artery_disease","heart_failure","atrial_fibrillation"]'),
     (${trial!.id}, 'language_any', '["hi","gu","pa","ta","bn"]')`);
+  // The voice pre-screen's approved questions (D-033), with the demo approval reference.
+  await db.execute(sql`INSERT INTO research.prescreen_question (trial_id, ordinal, wording, eligible_answer, approval_ref)
+    VALUES (${trial!.id}, 1, ${JSON.stringify({
+      en: 'Has a doctor ever told you that you have heart disease or heart failure?',
+      hi: 'क्या किसी डॉक्टर ने कभी आपको बताया है कि आपको दिल की बीमारी या हार्ट फ़ेलियर है?',
+    })}::jsonb, 'yes', 'DEMO-IRB-0001 (synthetic)'),
+           (${trial!.id}, 2, ${JSON.stringify({
+             en: 'Can you walk across a room without help?',
+             hi: 'क्या आप बिना मदद के कमरे में एक तरफ़ से दूसरी तरफ़ चल सकते हैं?',
+           })}::jsonb, 'yes', 'DEMO-IRB-0001 (synthetic)')`);
   for (const [unit, cents] of [
     ['prescreen_completed', 15000],
     ['introduction_delivered', 40000],

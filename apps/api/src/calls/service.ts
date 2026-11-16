@@ -71,6 +71,12 @@ async function contextFor(
          AND type <> 'gene_drug_mismatch'
        ORDER BY days_until_problem, type LIMIT 2`)
   ).rows.map((w) => ({ kind: w.type, drug: spoken(w.drug), warningId: w.id }));
+  // Trial Bridge pre-screen: an open match's approved questions; none without consent (0022).
+  const ps = (
+    await db.execute<{ match_id: string; questions: { id: string; text: string }[] }>(
+      sql`SELECT match_id, questions FROM research.prescreen_for_call(${patientId}, ${p.locale})`,
+    )
+  ).rows[0];
   return {
     patientName: p.preferredName ?? p.name.split(' ')[0] ?? p.name,
     doctorName: rows[0]?.doctor ?? 'your doctor',
@@ -80,6 +86,7 @@ async function contextFor(
     upcoming,
     speechTask: rows[0]?.speech === true,
     region: rows[0]?.region ?? 'US',
+    ...(ps ? { prescreen: { matchId: ps.match_id, questions: ps.questions } } : {}),
     practiceId: p.practiceId,
     householdId: p.householdId,
   };
@@ -183,7 +190,27 @@ export async function callTurn(
             )
           ).rows[0]?.id ?? null)
         : null;
-    const researchSeconds = Math.round((speech?.ms ?? 0) / 1000);
+    // Trial Bridge: a complete pre-screen moves the match (prescreened or ineligible), under the
+    // pseudonym; null when the call, consent or match no longer holds.
+    const ps = r.state.slots.prescreen;
+    const prescreen =
+      ps?.status === 'done' && !prev.slots.prescreen?.status
+        ? ((
+            await db.execute<{ s: string | null }>(
+              sql`SELECT research.record_prescreen(${callId}, ${ps.matchId}, ${JSON.stringify(ps.answers)}::jsonb) AS s`,
+            )
+          ).rows[0]?.s ?? null)
+        : null;
+    if (prescreen)
+      await audit(db, {
+        action: 'update',
+        entityType: 'trial_match',
+        entityId: ps!.matchId,
+        patientId: c.patientId,
+        purpose: 'research',
+        details: { status: prescreen, by: 'voice_prescreen' },
+      });
+    const researchSeconds = Math.round(((speech?.ms ?? 0) + (ps?.ms ?? 0)) / 1000);
     const { turns: _t, step, outcome, ...rest } = r.state;
     await db
       .update(schema.call)
@@ -223,6 +250,7 @@ export async function callTurn(
       speechStarted: step === 'speech_task' && prev.step !== 'speech_task',
       speechOver: prev.step === 'speech_task' && step !== 'speech_task',
       speechSampleId,
+      prescreen,
     };
   });
 }
