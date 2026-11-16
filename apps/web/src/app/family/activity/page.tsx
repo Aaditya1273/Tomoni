@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { ArrowLeft } from 'lucide-react';
 import type { Activity } from '@tomoni/contracts';
-import { apiGet, requireSurface } from '@tomoni/web-shared/server';
+import { apiGet, getPrefs, requireSurface } from '@tomoni/web-shared/server';
 import { drugName } from '@/lib/medicines';
 
 export const metadata = { title: 'What Tomoni did' };
@@ -10,10 +10,11 @@ export const metadata = { title: 'What Tomoni did' };
 /** Everything Tomoni did for the household in the last 30 days, in plain words (§5.5). */
 export default async function ActivityPage() {
   await requireSurface('family');
-  const [t, f, res] = await Promise.all([
+  const [t, f, res, prefs] = await Promise.all([
     getTranslations('family'),
     getFormatter(),
     apiGet<Activity>('/api/family/activity'),
+    getPrefs(),
   ]);
   const events = res.data?.events ?? [];
   return (
@@ -38,7 +39,11 @@ export default async function ActivityPage() {
                   {e.kind !== 'call' && e.kind !== 'flag' ? drug : ''}
                 </span>
                 <time className="text-sm text-muted" dateTime={e.at}>
-                  {f.dateTime(new Date(e.at), { dateStyle: 'medium', timeStyle: 'short' })}
+                  {f.dateTime(new Date(e.at), {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                    timeZone: prefs.timeZone,
+                  })}
                 </time>
               </li>
             );

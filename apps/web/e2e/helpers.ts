@@ -54,6 +54,8 @@ export async function passMfa(page: Page, email: string) {
 
 /** WCAG 2.2 AA scan; fails the test on any violation. */
 export async function expectAccessible(page: Page) {
+  // After a client-side navigation the URL changes before Next streams the new <title> in.
+  await expect(page).toHaveTitle(/\S/);
   const r = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();

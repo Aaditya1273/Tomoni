@@ -1,6 +1,6 @@
 import { getFormatter, getTranslations } from 'next-intl/server';
 import type { DataFiles } from '@tomoni/contracts';
-import { apiGet, requireSurface } from '@tomoni/web-shared/server';
+import { apiGet, getPrefs, requireSurface } from '@tomoni/web-shared/server';
 import { StaffShell } from '@/components/StaffShell';
 import { PbmUpload } from './PbmUpload';
 
@@ -8,11 +8,12 @@ export const metadata = { title: 'Data files' };
 
 export default async function AdminData() {
   const me = await requireSurface('admin');
-  const [t, ts, f, files] = await Promise.all([
+  const [t, ts, f, files, prefs] = await Promise.all([
     getTranslations('admin'),
     getTranslations('surfaces'),
     getFormatter(),
     apiGet<DataFiles>('/api/admin/data-files'),
+    getPrefs(),
   ]);
   return (
     <StaffShell surface="desk" me={me} title={ts('admin')}>
@@ -49,7 +50,11 @@ export default async function AdminData() {
                     <td className="py-2 pr-4 text-right">{v.rowCount}</td>
                     <td className="py-2 pr-4 text-right">{v.droppedCount}</td>
                     <td className="py-2">
-                      {f.dateTime(new Date(v.loadedAt), { dateStyle: 'medium', timeStyle: 'short' })}
+                      {f.dateTime(new Date(v.loadedAt), {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                        timeZone: prefs.timeZone,
+                      })}
                     </td>
                   </tr>
                 ))}

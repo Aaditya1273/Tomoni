@@ -42,7 +42,20 @@ export interface Prefs {
   locale: Locale;
   theme: 'light' | 'dark' | 'system';
   largeText: boolean;
+  /** The viewer's IANA time zone, for times of day. Calendar dates stay in UTC (i18n/request.ts). */
+  timeZone: string;
 }
+
+const zone = (v: string | undefined) => {
+  if (!v) return 'UTC';
+  try {
+    return new Intl.DateTimeFormat('en', { timeZone: v }).resolvedOptions().timeZone;
+  } catch {
+    return 'UTC';
+  }
+};
+
+export const TZ_COOKIE = 'tomoni_tz';
 
 export async function getPrefs(): Promise<Prefs> {
   const c = await cookies();
@@ -55,6 +68,7 @@ export async function getPrefs(): Promise<Prefs> {
     locale,
     theme: t === 'light' || t === 'dark' ? t : 'system',
     largeText: c.get('tomoni_text')?.value === 'large',
+    timeZone: zone(c.get(TZ_COOKIE)?.value),
   };
 }
 

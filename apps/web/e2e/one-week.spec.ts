@@ -113,6 +113,17 @@ test.describe.serial('one week in Tomoni', () => {
     await expect(page.locator('[data-activity="action.succeeded"]').first()).toContainText('Done for');
     await expect(page.locator('[data-activity="flag.symptom"]').first()).toContainText('the nurse was told');
     await expect(page.getByText('Pet mein dard')).toHaveCount(0); // the caller's words stay with the care team
+    // Times of day are in the viewer's time zone, not UTC.
+    const t = page.locator('[data-activity] time').first();
+    await expect(async () => {
+      const [shown, local] = await t.evaluate((el) => [
+        el.textContent,
+        new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(
+          new Date(el.getAttribute('datetime')!),
+        ),
+      ]);
+      expect(shown?.replace(/\s/g, ' ')).toBe(local.replace(/\s/g, ' '));
+    }).toPass();
     await expectAccessible(page);
     await snap(page, info, 'family-activity');
   });

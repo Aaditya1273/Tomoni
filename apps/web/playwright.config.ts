@@ -21,7 +21,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   globalSetup: './e2e/global-setup.ts',
-  use: { baseURL: 'http://localhost:3001', trace: 'retain-on-failure' },
+  // A US family's browser: catches calendar dates slipping a day and times shown in UTC.
+  use: { baseURL: 'http://localhost:3001', trace: 'retain-on-failure', timezoneId: 'America/New_York' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
     { name: 'mobile', use: { ...devices['Pixel 7'] } },

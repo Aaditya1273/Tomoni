@@ -5,6 +5,7 @@ import { getPrefs, getSandbox } from './server';
 import { fontVariables } from './fonts';
 import { SandboxNotice } from './SandboxNotice';
 import { OfflineBanner } from './OfflineBanner';
+import { TimeZoneCookie } from './TimeZoneCookie';
 
 /** <html> for both web apps: language, direction, theme, text size, fonts, sandbox badge. */
 export async function RootDocument({ children }: { children: ReactNode }) {
@@ -20,9 +21,10 @@ export async function RootDocument({ children }: { children: ReactNode }) {
       suppressHydrationWarning
     >
       <body>
-        <NextIntlClientProvider locale={prefs.locale} messages={messagesFor(prefs.locale)}>
+        <NextIntlClientProvider locale={prefs.locale} messages={messagesFor(prefs.locale)} timeZone="UTC">
           {sandbox.sandbox && <SandboxNotice mocks={sandbox.mockAdapters} />}
           <OfflineBanner />
+          <TimeZoneCookie />
           {children}
         </NextIntlClientProvider>
       </body>
