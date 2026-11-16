@@ -139,6 +139,34 @@ describe('research consent through the API', () => {
     expect((await sponsor.req('GET', '/api/family/card')).statusCode).toBe(403);
   });
 
+  it('only the research coordinator sees the funnel by name; each move records who made it', async () => {
+    const coord = await login('research_coordinator', {}, true);
+    const list = (await coord.req('GET', '/api/research/matches')).json();
+    expect(list).toEqual([expect.objectContaining({ patientName: 'Raj Patel', status: 'introduced' })]);
+    for (const [role, scope] of [
+      ['admin', {}],
+      ['nurse', { practiceId: ids.practiceId }],
+    ] as const) {
+      const c = await login(role, scope, true);
+      expect((await c.req('GET', '/api/research/matches')).statusCode).toBe(403);
+    }
+    const r = await coord.req('POST', `/api/research/matches/${list[0].matchId}/stage`, {
+      stage: 'consent_prep',
+    });
+    expect(r.statusCode).toBe(204);
+    const { rows } = await db.execute<{
+      by: string;
+      purpose: string;
+    }>(sql`SELECT details->>'by' AS by, purpose
+      FROM audit.event WHERE entity_type = 'trial_match' AND details->>'status' = 'consent_prep'`);
+    expect(rows).toEqual([{ by: coord.userId, purpose: 'research' }]);
+    // The role cannot carry a care, family or sponsor scope.
+    await expect(
+      db.execute(sql`INSERT INTO auth.role_grant (user_id, role, practice_id)
+        SELECT id, 'research_coordinator', ${ids.practiceId} FROM auth.user_account LIMIT 1`),
+    ).rejects.toThrow();
+  });
+
   it('withdrawal stops research at once: the doctor no longer sees the match', async () => {
     const raj = await login('patient', { patientId: rajId });
     const ov = (await raj.req('GET', '/api/research')).json();

@@ -14,7 +14,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 
 ## IRB and research
 - [ ] An IRB-approved protocol for the registry, Trial Bridge and Voice Lab, with the consent document the plain summaries are written from.
-- [ ] The research coordinator role (admin stands in today) and its training.
+- [ ] Staff the research coordinator role (built: matched names only, every read and move audited) and train them on the protocol.
 - [ ] Data use agreements with each sponsor. Counsel confirms the aggregate-only portal and small-cell suppression (rule 2.9).
 
 ## FDA strategy for Voice Lab

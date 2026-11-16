@@ -42,12 +42,6 @@ export async function StaffShell({
           <nav aria-label="Admin">
             <Link href="/admin/data" className="text-sm font-semibold text-neel underline underline-offset-2">
               {ta('dataTitle')}
-            </Link>{' '}
-            <Link
-              href="/admin/research"
-              className="ml-3 text-sm font-semibold text-neel underline underline-offset-2"
-            >
-              {ta('research.title')}
             </Link>
           </nav>
         )}

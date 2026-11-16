@@ -48,14 +48,14 @@ test.describe.serial('Trial Bridge, end to end', () => {
   test('the coordinator moves Raj to randomized; the sponsor sees counts, never people', async ({
     browser,
   }, info) => {
-    const admin = await staff(browser, 'admin@demo.tomoni.test');
-    await admin.goto('/admin/research');
-    const row = admin.locator(`tr[data-id="${matchId}"]`);
+    const coordinator = await staff(browser, 'research@demo.tomoni.test');
+    await coordinator.goto('/research');
+    const row = coordinator.locator(`tr[data-id="${matchId}"]`);
     for (const stage of ['Consent prep', 'Referred to site', 'Randomized']) {
       await row.getByRole('button', { name: `Move to ${stage}` }).click();
       await expect(row).toContainText(stage);
     }
-    await expectAccessible(admin);
+    await expectAccessible(coordinator);
 
     const sponsor = await (await browser.newContext()).newPage();
     await sponsor.goto(`${PORTAL}/login`);
@@ -84,8 +84,8 @@ test.describe.serial('Trial Bridge, end to end', () => {
     await page.goto('/family/research');
     await page.getByRole('button', { name: 'Leave the registry' }).click();
     await expect(page.getByLabel('Find medical studies that may fit')).toBeVisible();
-    const admin: Page = await staff(browser, 'admin@demo.tomoni.test');
-    await admin.goto('/admin/research');
-    await expect(admin.locator(`tr[data-id="${matchId}"]`)).toHaveCount(0);
+    const coordinator: Page = await staff(browser, 'research@demo.tomoni.test');
+    await coordinator.goto('/research');
+    await expect(coordinator.locator(`tr[data-id="${matchId}"]`)).toHaveCount(0);
   });
 });

@@ -59,6 +59,12 @@ export const DEMO_LOGINS = [
     role: 'ops_agent',
     note: 'Sunrise Internal Medicine (offshore ops on)',
   },
+  {
+    email: 'research@demo.tomoni.test',
+    name: 'Leah Okafor',
+    role: 'research_coordinator',
+    note: 'Trial Bridge funnel: matched names only, every read audited',
+  },
   { email: 'admin@demo.tomoni.test', name: 'Tomoni Admin', role: 'admin', note: 'Everything, audited' },
   {
     email: 'sponsor@demo.tomoni.test',
@@ -385,7 +391,7 @@ export async function seed(log: (m: string) => void = () => {}, opts: { force?: 
             ? { practiceId: sunrise.id }
             : d.role === 'sponsor_user'
               ? { sponsorId: SPONSOR_DEMO_ID }
-              : d.role === 'admin'
+              : d.role === 'admin' || d.role === 'research_coordinator'
                 ? {}
                 : { practiceId: rao.id };
     await db.insert(schema.roleGrant).values({ userId: u!.id, role: d.role, ...scope });

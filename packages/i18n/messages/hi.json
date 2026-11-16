@@ -48,7 +48,8 @@
     "desk": "केयर डेस्क",
     "ops": "ऑपरेशंस",
     "sponsor": "रिसर्च पार्टनर पोर्टल",
-    "admin": "एडमिन"
+    "admin": "एडमिन",
+    "research": "रिसर्च"
   },
   "family": {
     "greetingMorning": "सुप्रभात, {name}",

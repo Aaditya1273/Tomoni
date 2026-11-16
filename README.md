@@ -43,6 +43,7 @@ All use the password `tomoni-demo-2026`. They exist only in the synthetic seed, 
 | `nurse.priya@demo.tomoni.test` | Nurse, Rao Family Medicine | Care desk | Yes |
 | `frontdesk@demo.tomoni.test` | Front desk, Rao Family Medicine | Care desk | Yes |
 | `ops.kiran@demo.tomoni.test` | Ops agent, Sunrise Internal Medicine | Ops console | Yes |
+| `research@demo.tomoni.test` | Research coordinator: the Trial Bridge funnel | Research (`/research`) | Yes |
 | `admin@demo.tomoni.test` | Admin: PBM uploads, data file log | Admin (`/admin/data`) | Yes |
 | `sponsor@demo.tomoni.test` | Sponsor user | Partner portal (:3100) only | Yes |
 
@@ -50,7 +51,7 @@ For MFA, scan the QR code with any authenticator app, or type the key shown unde
 
 **Try the call:** sign in as `nurse.priya@demo.tomoni.test`, open the desk, and click **Call simulator**. Pick Raj and start a call. Then type as Raj, for example "I'm fine", then "Mujhe chakkar aa rahe hain" (feeling dizzy). The nurse flag appears on the desk in another tab within a second. Try "chest pain" in any of the six languages.
 
-**Try Trial Bridge:** as `raj@demo.tomoni.test`, open **Research studies** and join. As `dr.rao`, mark the study introduced on the desk. As `admin`, move Raj through **Research matches**. As `sponsor@demo.tomoni.test` on port 3100, see only rounded counts and the work billed.
+**Try Trial Bridge:** as `raj@demo.tomoni.test`, open **Research studies** and join. As `dr.rao`, mark the study introduced on the desk. As `research@demo.tomoni.test`, move Raj through **Research matches**. As `sponsor@demo.tomoni.test` on port 3100, see only rounded counts and the work billed.
 
 **Try the agent:** as Asha, tap **Ask Tomoni to help** on a warning. Transfers wait for Asha's **Approve**; renewals wait for `dr.rao` to **Sign** on the desk.
 

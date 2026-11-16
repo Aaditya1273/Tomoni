@@ -276,6 +276,7 @@ export const researchRoutes =
       to: Stage,
       guard: (patientPracticeId: string) => boolean,
       actorPurpose: 'treatment' | 'research',
+      by: string, // who moved it: the worker role writes the row, the person is recorded here
     ) =>
       withScope('worker', research, async (db) => {
         const { rows } = await db.execute<{
@@ -303,7 +304,7 @@ export const researchRoutes =
           entityId: matchId,
           patientId: m.patient_id,
           purpose: actorPurpose,
-          details: { status: to },
+          details: { status: to, by },
         });
         return 'ok' as const;
       });
@@ -326,6 +327,7 @@ export const researchRoutes =
           req.body.outcome,
           (pp) => s.staffPracticeIds.includes(pp),
           'treatment',
+          req.auth!.userId,
         );
         if (r === 'not_found')
           return reply
@@ -337,11 +339,12 @@ export const researchRoutes =
       },
     );
 
-    // ── The research coordinator moves the funnel (admin until a coordinator role exists) ──
+    // ── The research coordinator moves the funnel. Names come only for people in a match, read
+    // under the worker role (the coordinator has no care scope), and every read is audited. ──
     app.get(
       '/api/research/matches',
       {
-        preHandler: requireAuth({ roles: ['admin'] }),
+        preHandler: requireAuth({ roles: ['research_coordinator'] }),
         schema: { tags: ['research'], response: { 200: ResearchMatches } },
       },
       async (req) => {
@@ -362,9 +365,9 @@ export const researchRoutes =
               JOIN research.trial t ON t.id = m.trial_id ORDER BY m.updated_at DESC LIMIT 200`)
             ).rows,
         );
-        return withScope('app', req.auth!.scope, async (db) => {
-          const people = rows.length
-            ? await db
+        const people = rows.length
+          ? await withScope('worker', research, (db) =>
+              db
                 .select({ id: schema.patient.id, name: schema.patient.name })
                 .from(schema.patient)
                 .where(
@@ -372,9 +375,11 @@ export const researchRoutes =
                     schema.patient.id,
                     rows.map((r) => r.patient_id),
                   ),
-                )
-            : [];
-          const nameOf = new Map(people.map((p) => [p.id, p.name]));
+                ),
+            )
+          : [];
+        const nameOf = new Map(people.map((p) => [p.id, p.name]));
+        return withScope('app', req.auth!.scope, async (db) => {
           await audit(db, {
             action: 'read',
             entityType: 'trial_match',
@@ -395,7 +400,7 @@ export const researchRoutes =
     app.post(
       '/api/research/matches/:id/stage',
       {
-        preHandler: requireAuth({ roles: ['admin'] }),
+        preHandler: requireAuth({ roles: ['research_coordinator'] }),
         schema: {
           tags: ['research'],
           params: z.object({ id: z.uuid() }),
@@ -404,7 +409,7 @@ export const researchRoutes =
         },
       },
       async (req, reply) => {
-        const r = await advance(req.params.id, req.body.stage, () => true, 'research');
+        const r = await advance(req.params.id, req.body.stage, () => true, 'research', req.auth!.userId);
         if (r === 'not_found') return reply.code(404).send({ error: 'not_found', message: 'No such match.' });
         if (r === 'bad_step')
           return reply.code(409).send({ error: 'bad_step', message: 'That step is not next.' });

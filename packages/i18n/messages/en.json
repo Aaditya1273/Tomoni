@@ -48,7 +48,8 @@
     "desk": "Care desk",
     "ops": "Operations",
     "sponsor": "Research partner portal",
-    "admin": "Admin"
+    "admin": "Admin",
+    "research": "Research"
   },
   "family": {
     "greetingMorning": "Good morning, {name}",

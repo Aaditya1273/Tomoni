@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { ROLES } from '@tomoni/core';
 
 export const Role = z.enum(ROLES);
-export const Surface = z.enum(['family', 'desk', 'ops', 'sponsor', 'admin']);
+export const Surface = z.enum(['family', 'desk', 'ops', 'sponsor', 'research', 'admin']);
 
 export const ErrorBody = z.object({
   error: z.string(),

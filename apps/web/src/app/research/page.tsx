@@ -15,8 +15,8 @@ const NEXT: Record<string, string | undefined> = {
 };
 
 /** The research coordinator's funnel (Trial Bridge steps 2, 4, 5). Each step is work, some of it billable. */
-export default async function AdminResearch() {
-  const me = await requireSurface('admin');
+export default async function Research() {
+  const me = await requireSurface('research');
   const [t, ts, res] = await Promise.all([
     getTranslations('admin.research'),
     getTranslations('surfaces'),
@@ -24,7 +24,7 @@ export default async function AdminResearch() {
   ]);
   const rows = res.data ?? [];
   return (
-    <StaffShell surface="desk" me={me} title={ts('admin')}>
+    <StaffShell surface="desk" me={me} title={ts('research')}>
       <main id="main" className="flex flex-col gap-4 p-4">
         <h1 className="text-lg font-semibold">{t('title')}</h1>
         <div className="overflow-x-auto">

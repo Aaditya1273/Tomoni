@@ -7,6 +7,7 @@ export const ROLES = [
   'front_desk',
   'ops_agent',
   'sponsor_user',
+  'research_coordinator',
   'admin',
 ] as const;
 export type Role = (typeof ROLES)[number];
@@ -15,7 +16,13 @@ export const STAFF_ROLES = ['physician', 'nurse', 'front_desk'] as const satisfi
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 /** Roles that must pass TOTP before any data access (SECURITY S8). */
-export const MFA_REQUIRED_ROLES: readonly Role[] = [...STAFF_ROLES, 'ops_agent', 'sponsor_user', 'admin'];
+export const MFA_REQUIRED_ROLES: readonly Role[] = [
+  ...STAFF_ROLES,
+  'ops_agent',
+  'sponsor_user',
+  'research_coordinator',
+  'admin',
+];
 
 /** Idle timeout in seconds: 15 min for clinical/ops/sponsor/admin, 7 days for family-side roles. */
 export function idleTimeoutFor(roles: readonly Role[]): number {
@@ -32,7 +39,7 @@ export function requiresMfa(roles: readonly Role[]): boolean {
 }
 
 /** Which app surface a user lands on after login. */
-export type Surface = 'family' | 'desk' | 'ops' | 'sponsor' | 'admin';
+export type Surface = 'family' | 'desk' | 'ops' | 'sponsor' | 'research' | 'admin';
 export function surfacesFor(roles: readonly Role[]): Surface[] {
   const s = new Set<Surface>();
   for (const r of roles) {
@@ -40,6 +47,7 @@ export function surfacesFor(roles: readonly Role[]): Surface[] {
     else if (r === 'physician' || r === 'nurse' || r === 'front_desk') s.add('desk');
     else if (r === 'ops_agent') s.add('ops');
     else if (r === 'sponsor_user') s.add('sponsor');
+    else if (r === 'research_coordinator') s.add('research');
     else if (r === 'admin') s.add('admin');
   }
   return [...s];

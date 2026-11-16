@@ -41,6 +41,7 @@ test.describe('sign-in and role routing (Phase 1 DoD)', () => {
     ['nurse.priya@demo.tomoni.test', 'desk', /\/desk$/],
     ['frontdesk@demo.tomoni.test', 'desk', /\/desk$/],
     ['ops.kiran@demo.tomoni.test', 'ops', /\/ops$/],
+    ['research@demo.tomoni.test', 'research', /\/research$/],
     ['admin@demo.tomoni.test', 'admin', /\/admin\/data$/],
   ];
   for (const [email, surface, url] of staff) {

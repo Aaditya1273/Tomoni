@@ -1,7 +1,14 @@
 import { redirect } from 'next/navigation';
 import { getMe } from '@tomoni/web-shared/server';
 
-const HOME = { family: '/family', desk: '/desk', ops: '/ops', admin: '/admin/data', sponsor: null } as const;
+const HOME = {
+  family: '/family',
+  desk: '/desk',
+  ops: '/ops',
+  research: '/research',
+  admin: '/admin/data',
+  sponsor: null,
+} as const;
 
 /** Route each person to their surface. Sponsors never land in this app (D-002). */
 export default async function Index() {
