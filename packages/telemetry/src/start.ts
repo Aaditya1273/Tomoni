@@ -13,7 +13,12 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
   const sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME ?? 'tomoni',
     traceExporter: new RedactingExporter(new OTLPTraceExporter()),
-    metricReaders: [new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() })],
+    metricReaders: [
+      new PeriodicExportingMetricReader({
+        exporter: new OTLPMetricExporter(),
+        exportIntervalMillis: Number(process.env.OTEL_METRIC_EXPORT_INTERVAL ?? 60_000),
+      }),
+    ],
     instrumentations: [
       new HttpInstrumentation({
         ignoreIncomingRequestHook: (req) => req.url === '/api/system/health' || req.url === '/api/events',

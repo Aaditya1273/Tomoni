@@ -1,0 +1,243 @@
+# Tomoni alert rules, contact point and routing (RUNBOOK "Alerts"). severity=page wakes on-call;
+# severity=ticket waits for working hours. The webhook (PagerDuty, Opsgenie or Slack) comes from
+# TOMONI_ONCALL_WEBHOOK_URL. Signals: apps/worker/src/signals.ts and the API's HTTP metrics.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: on-call
+    receivers:
+      - uid: tomoni-oncall
+        type: webhook
+        settings:
+          url: $TOMONI_ONCALL_WEBHOOK_URL
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: on-call
+    group_by: [alertname]
+    routes:
+      - receiver: on-call
+        object_matchers: [[severity, '=', page]]
+        group_wait: 0s
+        repeat_interval: 30m
+      - receiver: on-call
+        object_matchers: [[severity, '=', ticket]]
+        group_wait: 5m
+        repeat_interval: 12h
+
+groups:
+  - orgId: 1
+    name: tomoni
+    folder: Tomoni
+    interval: 1m
+    rules:
+      - uid: urgent-flag-open
+        title: Urgent nurse flag open over 15 minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, instant: true, expr: max(tomoni_flags_urgent_open_seconds) }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [900] } }],
+              }
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: An emergency or self-harm flag has been open for over 15 minutes. The caller was told to call 911 or 112; the practice has not acknowledged.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: flag-open
+        title: Nurse flag open over 4 hours
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, instant: true, expr: max(tomoni_flags_open_seconds) }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [14400] } }],
+              }
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: A symptom flag has waited over 4 hours. The patient was promised a nurse call back today.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: outbox-stuck
+        title: Live events not relayed for 2 minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, instant: true, expr: max(tomoni_outbox_oldest_unpublished_seconds) }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [120] } }],
+              }
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: Outbox rows are not reaching Redis, so nurse flags and family cards are not updating live.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: worker-silent
+        title: Worker signals missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, instant: true, expr: absent(tomoni_jobs_dead_letters) }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [0] } }],
+              }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: The worker has stopped reporting. Calls, the outbox relay, the audit seal and jobs may all be down.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: dead-letters
+        title: Jobs in the dead-letter set
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, instant: true, expr: max(tomoni_jobs_dead_letters) }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [0] } }],
+              }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: ticket }
+        annotations:
+          summary: A job failed all its retries. List and retry with `pnpm --filter @tomoni/worker dlq`.
+          runbook_url: docs/RUNBOOK.md#dead-letters
+
+      - uid: calls-failing
+        title: Over 20% of phone calls failing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (max(tomoni_calls_failed_last_hour) / max(tomoni_calls_ended_last_hour)) and max(tomoni_calls_ended_last_hour) >= 10
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [0.2] } }],
+              }
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: More than one in five daily calls in the last hour failed. Check Twilio status and the voice webhooks.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: api-5xx
+        title: API 5xx over 2%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [0.02] } }],
+              }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: page }
+        annotations:
+          summary: More than 2% of API requests are failing with a server error.
+          runbook_url: docs/RUNBOOK.md#alerts
+
+      - uid: api-read-p95
+        title: API read p95 over 300 ms
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{http_request_method="GET"}[5m])))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              {
+                refId: C,
+                type: threshold,
+                expression: A,
+                conditions: [{ evaluator: { type: gt, params: [0.3] } }],
+              }
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: ticket }
+        annotations:
+          summary: Reads are slower than the §6 target of 300 ms at p95. The dashboard shows which route.
+          runbook_url: docs/RUNBOOK.md#alerts

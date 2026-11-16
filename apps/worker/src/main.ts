@@ -11,6 +11,7 @@ import { closePools, env } from '@tomoni/db';
 import { deps, handlers } from './handlers';
 import { isDead } from './dlq';
 import { startRelay } from './relay';
+import { registerSignals } from './signals';
 
 const connection = new Redis(env().REDIS_URL, { maxRetriesPerRequest: null });
 const prefix = process.env.TOMONI_QUEUE_PREFIX ?? 'bull';
@@ -19,6 +20,7 @@ const queue = new Queue(QUEUE, { connection, prefix, defaultJobOptions: JOB_DEFA
 // Seal the audit chain every 2 seconds; rerun the engine for everyone every morning.
 await queue.upsertJobScheduler('audit-seal', { every: 2000 }, { name: 'audit.seal', data: {} });
 deps.queue = queue;
+registerSignals(queue);
 // Daily calls dial real people when Twilio is on, so the scheduler is opt-in per environment.
 if (process.env.TOMONI_CALL_SCHEDULER === 'on')
   await queue.upsertJobScheduler('call-schedule', { every: 5 * 60_000 }, { name: 'call.schedule', data: {} });

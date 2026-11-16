@@ -22,7 +22,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 - [ ] Audio capture (a Twilio `<Record>` step into the research bucket) is reviewed for consent and storage before it ships.
 
 ## Clinical protocol sign-off (a US-licensed physician)
-- [ ] The safety phrase lists in six languages, the escalation paths, and the 911 and 988 scripts (rule 2.1).
+- [ ] The safety phrase lists in six languages, the escalation paths, the 911 and 988 scripts, and India's 112 and Tele-MANAS 14416 scripts (rule 2.1, D-031).
 - [ ] The warning thresholds (D-018, D-019) and the wording families see.
 - [ ] Gene-to-Pill rules reviewed by a clinical pharmacist; doctor-only delivery confirmed (D-028).
 - [ ] Care-plan templates and APCM documentation.
@@ -41,7 +41,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 - [ ] Production secrets in a secrets manager. Rotate every key that ever lived in a `.env` file. Plan and test the field-encryption key rotation.
 - [ ] TLS everywhere; encryption at rest on the database, backups and object storage.
 - [ ] Backups: point-in-time recovery, off-site copies, a restore drill on production-sized data, and agreed RPO and RTO (RUNBOOK).
-- [ ] Monitoring and on-call: alerts on dead letters, unpublished outbox rows, call failures and API p95.
+- [ ] Monitoring and on-call: the alert rules are built (RUNBOOK "Alerts"); choose the pager, set `TOMONI_ONCALL_WEBHOOK_URL`, staff a rota with clinical escalation for urgent flags, and run a paging drill.
 
 ## Integrations in production
 - [ ] **Blue Button 2.0 production access:** CMS approval of the app, the privacy policy and the production credentials.

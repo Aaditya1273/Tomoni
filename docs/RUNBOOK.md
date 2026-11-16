@@ -67,6 +67,23 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 OTEL_SERVICE_NAME=tomoni-api p
 
 Telemetry is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Spans are named by route template, never by raw path. Query strings are stripped before export, no headers are recorded, and SQL is recorded without values. The **Tomoni** dashboard shows API p95 by route, request rate by status, and database time.
 
+## Alerts
+
+Rules, the on-call contact point and routing are provisioned from `infra/grafana/alerts.yaml`. Set `TOMONI_ONCALL_WEBHOOK_URL` to the pager's webhook (PagerDuty, Opsgenie or Slack); `severity=page` repeats every 30 minutes until resolved, and `severity=ticket` waits for working hours. The worker reports the signals (`apps/worker/src/signals.ts`) as counts and ages only, never PHI.
+
+| Alert | Severity | First steps |
+| --- | --- | --- |
+| Urgent nurse flag open over 15 minutes | page | The caller was already told to call 911 (or 112 in India). Phone the practice's on-call clinician; for India, the Tomoni India Care Team lead. Then check that the flag reached the desk (below). |
+| Nurse flag open over 4 hours | page | The patient was promised a call back today. Phone the practice's nurse line. |
+| Live events not relayed for 2 minutes | page | Flags and family cards are not updating live. Check the worker's health and Redis, then restart the worker; the relay drains the backlog. |
+| Worker signals missing | page | The worker is down or can't reach the collector. Restart it, then check the outbox and dead letters. |
+| Jobs in the dead-letter set | ticket | `pnpm --filter @tomoni/worker dlq` lists them; fix the cause, then `dlq retry`. Handlers are idempotent. |
+| Over 20% of phone calls failing | page | Check Twilio's status page, the voice webhook logs (signature failures return 403), and `TOMONI_PUBLIC_ORIGIN`. |
+| API 5xx over 2% | page | Check the API logs by request id and the database. Roll back the last deploy if it started with it. |
+| API read p95 over 300 ms | ticket | The dashboard shows which route; the pg panel shows whether it is the database. |
+
+To test the path end to end, run the observability profile and a worker with `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 OTEL_METRIC_EXPORT_INTERVAL=5000`. Rules appear under Alerting → Tomoni, and any dead letter in the dev queue turns "Jobs in the dead-letter set" pending within a minute.
+
 ## Performance checks (§6)
 
 | Target | Command | Last measured (2026-11-15, laptop) |

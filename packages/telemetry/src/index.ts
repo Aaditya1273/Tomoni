@@ -5,6 +5,8 @@
  * logs, SECURITY S13), and SQL is recorded as parameterized text without values.
  */
 import { context } from '@opentelemetry/api';
+
+export { metrics } from '@opentelemetry/api';
 import { getRPCMetadata, RPCType } from '@opentelemetry/core';
 import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace';
 

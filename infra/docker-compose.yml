@@ -40,6 +40,9 @@ services:
     volumes:
       - ./grafana/tomoni.json:/otel-lgtm/tomoni-dashboard.json:ro
       - ./grafana/provider.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/tomoni.yaml:ro
+      - ./grafana/alerts.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/tomoni.yaml:ro
+    environment:
+      TOMONI_ONCALL_WEBHOOK_URL: ${TOMONI_ONCALL_WEBHOOK_URL:-http://127.0.0.1:9/set-TOMONI_ONCALL_WEBHOOK_URL}
 
 volumes:
   pgdata:
