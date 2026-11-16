@@ -3,7 +3,8 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { systemScope } from '@tomoni/core';
-import { closePools, ownerDb, repoRoot, schema, withScope } from '@tomoni/db';
+import { proposeForWarning, runAction } from '@tomoni/agent';
+import { closePools, ownerDb, repoRoot, schema, withScope, type Db } from '@tomoni/db';
 import { runEngine } from '@tomoni/medicines';
 import { buildServer } from '../src/server';
 import { Client, makeUser, ORIGIN } from './helpers';
@@ -90,6 +91,19 @@ describe('India bridge: family-entered medicines', () => {
     const photo = await priya.req('GET', `/api/fills/${ev.fills[0].id}/photo`);
     expect(photo.headers['content-type']).toBe('image/png');
     expect(Buffer.from(photo.rawPayload).equals(PNG)).toBe(true);
+  });
+
+  it('a "yes" on the call asks the family, live on the card; nothing else acts in India', async () => {
+    const w = (await priya.req('GET', '/api/family/card')).json().patients[0].warnings[0];
+    const tx = <T>(fn: (db: Db) => Promise<T>) => withScope('worker', systemScope('test'), fn);
+    expect(await tx((db) => proposeForWarning(db, w.id, 'family_app'))).toEqual([]);
+    const [a] = await tx((db) => proposeForWarning(db, w.id, 'call'));
+    expect(a).toMatchObject({ skill: 'askFamilyToHelp', state: 'approved', created: true });
+    expect(await runAction(tx, a!.id, {} as never, '2026-11-15')).toEqual({ state: 'succeeded' });
+    const p = (await priya.req('GET', '/api/family/card')).json().patients[0];
+    expect(p.actions).toEqual([
+      expect.objectContaining({ warningId: w.id, skill: 'askFamilyToHelp', state: 'succeeded' }),
+    ]);
   });
 
   it('the photo is encrypted on disk', () => {

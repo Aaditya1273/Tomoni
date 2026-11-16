@@ -53,8 +53,10 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
     };
     if (tokens.expiresAt && tokens.expiresAt.getTime() < Date.now() + 60_000)
       tokens = await adapter.refresh(tokens);
-    // The mock's data is a snapshot as of the day the family connected, so re-syncs are idempotent.
-    const asOf = adapter.mode === 'mock' ? link.connectedAt.toISOString().slice(0, 10) : today();
+    // The mock's data is a snapshot as of the day the family connected, so re-syncs are idempotent,
+    // and never later than the engine's today (a pinned TOMONI_TODAY in tests).
+    const connected = link.connectedAt.toISOString().slice(0, 10);
+    const asOf = adapter.mode === 'mock' && connected < today() ? connected : today();
     const bundles = await adapter.fetchBundles(tokens, asOf); // network call outside any DB transaction
 
     return withScope('worker', scope, async (db) => {
@@ -177,8 +179,9 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
         household_id: string;
         practice: string;
         locale: string;
+        region: 'US' | 'IN';
       }>(sql`
-        SELECT f.patient_id, p.household_id, pr.name AS practice, h.primary_locale AS locale
+        SELECT f.patient_id, p.household_id, pr.name AS practice, h.primary_locale AS locale, h.region
           FROM care.nurse_flag f JOIN care.patient p ON p.id = f.patient_id
           JOIN care.practice pr ON pr.id = p.practice_id JOIN care.household h ON h.id = p.household_id
          WHERE f.id = ${flagId} AND f.urgency = 1`);
@@ -196,7 +199,12 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
     });
     if (!plan) return { skipped: 'not an emergency flag' };
     const t = telephony();
-    const body = line(plan.locale, 'familyEmergency', { name: plan.name, practice: plan.practice });
+    const body = line(
+      plan.locale,
+      'familyEmergency',
+      { name: plan.name, practice: plan.practice },
+      plan.region,
+    );
     const results: { member: string; ref: string; sent: boolean }[] = [];
     for (const m of plan.family) results.push({ member: m.id, ...(await t.sendSms({ to: m.phone!, body })) });
     await withScope('worker', scope, (db) =>

@@ -4,9 +4,10 @@
  * English and Hindi are complete; the other shipped locales fall back to English per line until
  * native speakers write them (PROGRESS). Bump SCRIPT_VERSION on any wording change.
  */
-export const SCRIPT_VERSION = 'daily-call.v2';
+export const SCRIPT_VERSION = 'daily-call.v3';
 
 export type ScriptLocale = 'en' | 'hi';
+export type Region = 'US' | 'IN';
 export type UpcomingKind =
   | 'run_out'
   | 'late_refill'
@@ -118,6 +119,53 @@ const hi: Script = {
   },
 };
 
+/**
+ * India bridge (D-027): the family set the call up, the care team is Tomoni's own, emergencies go
+ * to 112 and crises to Tele-MANAS (14416), and a "yes" asks the family to help: in India no agent
+ * skill can act for the patient. Clinical sign-off: GO_LIVE_CHECKLIST.
+ */
+type Override = Partial<Omit<Script, 'item'>> & { item?: Partial<Script['item']> };
+const IN: Record<ScriptLocale, Override> = {
+  en: {
+    disclosure:
+      "Hello {name}. This is Tomoni, an automated assistant. Your family set up this daily call for you with {practice}. {recording} I'm not a nurse or a doctor, and I can't give medical advice.",
+    flagged:
+      "Thank you for telling me. I can't give medical advice, so I have asked someone from {practice} to call you back today.",
+    emergency:
+      'This sounds like an emergency. Please hang up and call 112 now. I am alerting {practice} and your family right away.',
+    selfHarm:
+      "I'm really sorry you're feeling this way. Please call Tele-MANAS on 14416 now to talk to someone right away. If you are in danger, call 112. I am letting {practice} and your family know.",
+    upcoming: 'One thing coming up: {item}. Shall I ask your family to help with it?',
+    upcomingHelp: "Okay. I'll let your family know today.",
+    voicemail:
+      "This is Tomoni, an automated assistant, with the daily check-in your family set up. We'll call again tomorrow.",
+    familyEmergency:
+      "Tomoni: on today's call {name} said something that may be an emergency and was told to call 112. {practice} has been alerted. Please check on {name} now.",
+    item: {
+      run_out: '{drug} runs out soon, and you may need to see your doctor for a new prescription',
+    },
+  },
+  hi: {
+    disclosure:
+      'नमस्ते {name}। मैं Tomoni हूँ, एक स्वचालित सहायक। आपके परिवार ने {practice} के साथ आपके लिए यह रोज़ की कॉल शुरू की है। {recording} मैं नर्स या डॉक्टर नहीं हूँ, और मैं कोई डॉक्टरी सलाह नहीं दे सकती।',
+    flagged:
+      'बताने के लिए धन्यवाद। मैं डॉक्टरी सलाह नहीं दे सकती, इसलिए मैंने {practice} से किसी को आज आपको वापस कॉल करने को कहा है।',
+    emergency:
+      'यह इमरजेंसी लग रही है। कृपया फ़ोन रखें और अभी 112 पर कॉल करें। मैं {practice} और आपके परिवार को तुरंत बता रही हूँ।',
+    selfHarm:
+      'मुझे बहुत दुख है कि आप ऐसा महसूस कर रहे हैं। किसी से अभी बात करने के लिए कृपया टेली-मानस को 14416 पर कॉल करें। अगर आप ख़तरे में हैं, तो 112 पर कॉल करें। मैं {practice} और आपके परिवार को बता रही हूँ।',
+    upcoming: 'एक बात आने वाली है: {item}। क्या मैं आपके परिवार से इसमें मदद करने को कहूँ?',
+    upcomingHelp: 'ठीक है। मैं आज ही आपके परिवार को बता दूँगी।',
+    voicemail:
+      'मैं Tomoni हूँ, एक स्वचालित सहायक, उस रोज़ की बातचीत के लिए जो आपके परिवार ने शुरू की है। हम कल फिर कॉल करेंगे।',
+    familyEmergency:
+      'Tomoni: आज की कॉल पर {name} ने कुछ ऐसा कहा जो इमरजेंसी हो सकती है, और उन्हें 112 पर कॉल करने को कहा गया। {practice} को बता दिया गया है। कृपया अभी {name} का हाल पूछें।',
+    item: {
+      run_out: '{drug} जल्द ख़त्म होने वाली है, और नए पर्चे के लिए शायद आपको डॉक्टर से मिलना होगा',
+    },
+  },
+};
+
 const SCRIPTS: Record<ScriptLocale, Script> = { en, hi };
 
 export const scriptLocale = (locale: string): ScriptLocale => (locale === 'hi' ? 'hi' : 'en');
@@ -126,10 +174,12 @@ type Key = Exclude<keyof Script, 'item'>;
 const fill = (s: string, vars: Record<string, string>) =>
   s.replace(/\{(\w+)\}/g, (_m, k: string) => vars[k] ?? '');
 
-export function line(locale: string, key: Key, vars: Record<string, string> = {}): string {
-  return fill(SCRIPTS[scriptLocale(locale)][key], vars);
+export function line(locale: string, key: Key, vars: Record<string, string> = {}, region: Region = 'US') {
+  const l = scriptLocale(locale);
+  return fill((region === 'IN' ? IN[l][key] : undefined) ?? SCRIPTS[l][key], vars);
 }
 
-export function itemLine(locale: string, kind: UpcomingKind, drug: string): string {
-  return fill(SCRIPTS[scriptLocale(locale)].item[kind], { drug });
+export function itemLine(locale: string, kind: UpcomingKind, drug: string, region: Region = 'US') {
+  const l = scriptLocale(locale);
+  return fill((region === 'IN' ? IN[l].item?.[kind] : undefined) ?? SCRIPTS[l].item[kind], { drug });
 }

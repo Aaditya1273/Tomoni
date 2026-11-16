@@ -55,6 +55,7 @@ describe('rule 2.3: approvals and the state machine', () => {
   });
   it('the registry is closed: nothing diagnoses, doses or chooses a drug', () => {
     expect(Object.keys(SKILLS).sort()).toEqual([
+      'askFamilyToHelp',
       'bookPickup',
       'checkRefillStatus',
       'comparePartDPlans',

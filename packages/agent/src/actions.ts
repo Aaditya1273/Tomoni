@@ -29,15 +29,24 @@ export async function proposeForWarning(
 ): Promise<Proposed[]> {
   const [w] = await db.select().from(schema.warning).where(eq(schema.warning.id, warningId));
   if (!w || w.status !== 'open') return [];
-  const skill = SKILL_FOR_WARNING[w.type];
-  if (!skill) return [];
   const [p] = await db
-    .select({ practiceId: schema.patient.practiceId, householdId: schema.patient.householdId })
+    .select({
+      practiceId: schema.patient.practiceId,
+      householdId: schema.patient.householdId,
+      region: schema.household.region,
+    })
     .from(schema.patient)
+    .innerJoin(schema.household, eq(schema.household.id, schema.patient.householdId))
     .where(eq(schema.patient.id, w.patientId));
+  // India: the family is who acts, and only when the parent asked on the call.
+  const india = p?.region === 'IN';
+  if (india && source !== 'call') return [];
+  const skill: SkillName | undefined = india ? 'askFamilyToHelp' : SKILL_FOR_WARNING[w.type];
+  if (!skill) return [];
 
   let inputs: Json[];
-  if (skill === 'comparePartDPlans') inputs = [{ year: Number(w.problemDate.slice(0, 4)) }];
+  if (skill === 'askFamilyToHelp') inputs = [{}];
+  else if (skill === 'comparePartDPlans') inputs = [{ year: Number(w.problemDate.slice(0, 4)) }];
   else if (skill === 'requestPharmacyTransfer') {
     // Closure: move each affected medicine to the first pharmacy that is not closing.
     const ev = w.evidence as { fillIds?: string[] };

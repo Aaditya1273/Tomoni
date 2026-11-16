@@ -34,6 +34,7 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-028 | Gene-drug warnings go to physicians only | NEEDS-FOUNDER-REVIEW |
 | D-029 | The speech task's words never enter the care record | Accepted |
 | D-030 | India family plan: $29 a month, Stripe Checkout, calls gated on payment with a past-due grace | NEEDS-FOUNDER-REVIEW |
+| D-031 | The India call: 112 and Tele-MANAS, the family is the one who acts | NEEDS-CLINICAL-REVIEW |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -173,3 +174,11 @@ In India there is no APCM, so the family abroad pays for the parent's daily call
 - **Self-service:** "Update card or cancel" opens Stripe's customer portal (a mock page in the sandbox). A cancel takes effect at the end of the paid month: `cancel_at` is stored, and the scheduler stops dialing once it passes even if Stripe's final event is late or lost. A late or replayed event never revives a canceled plan. Stripe's own end states (`unpaid`, `incomplete_expired`) end the plan, which bounds the past-due grace.
 - **Taxes:** `TOMONI_STRIPE_AUTOMATIC_TAX=true` turns on Stripe Tax once the account is registered.
 - **Still to decide:** the price, a free trial, INR pricing for families inside India, and the refund policy (refunds are issued from the Stripe dashboard).
+
+## D-031: The India call (NEEDS-CLINICAL-REVIEW)
+The daily call was written for a US practice. For a parent in India (household region `IN`), the same state machine uses India overrides (`packages/voice/src/scripts.ts`, `daily-call.v3`):
+- **Emergency and crisis numbers:** 112 (India's single emergency number) instead of 911, and Tele-MANAS on 14416 (the national mental-health line) instead of 988. This is a safety fix: before it, a parent in Ahmedabad would have been told to dial 911. The family's emergency text says 112 too.
+- **Who is calling:** "Your family set up this daily call for you with Tomoni India Care Team", not "from your doctor's office". There is no Tomoni doctor in India, so the opening line says what is true (rule 2.10).
+- **Who acts:** no pharmacy or e-prescribing partner can act for a parent in India. So the call asks "Shall I ask your family to help with it?", and a yes runs the `askFamilyToHelp` skill, which does nothing but show "Sunita-ben asked for your help with this on today's call" live on the family card. A run-out says the parent may need to see their doctor for a new prescription. The family app offers no agent actions for India.
+- **Still to review:** a clinician confirms the India scripts and escalation path, and a native speaker reviews the Hindi (and writes Gujarati, which Sunita-ben's household uses; it falls back to English today, D-025).
+

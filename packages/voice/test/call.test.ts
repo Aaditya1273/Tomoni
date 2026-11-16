@@ -178,3 +178,36 @@ describe('rule 2.8: the research speech task', () => {
     expect(state.outcome).toBe('escalated');
   });
 });
+
+describe('India bridge (D-027): the right numbers, and the family acts', () => {
+  const india = (o: Partial<CallContext> = {}) =>
+    ctx({ region: 'IN', practiceName: 'Tomoni India Care Team', doctorName: 'your doctor', ...o });
+
+  it('says the family set up the call, and asks the family to help, never "Tomoni will start"', async () => {
+    const { said, state } = await run(
+      india({ upcoming: [{ kind: 'run_out', drug: 'metformin', warningId: 'w1' }] }),
+      ['good', 'yes', 'yes'],
+    );
+    expect(said[0]).toContain('Your family set up this daily call for you with Tomoni India Care Team');
+    expect(said[0]).not.toContain("doctor's office");
+    expect(said.join(' ')).toContain('metformin runs out soon, and you may need to see your doctor');
+    expect(said.join(' ')).toContain('Shall I ask your family to help with it?');
+    expect(said.join(' ')).not.toContain('Tomoni will start on it');
+    expect(state.slots.helpWanted).toEqual(['w1']);
+  });
+
+  it('an emergency gets 112, never 911, in English and Hindi', async () => {
+    for (const locale of ['en', 'hi']) {
+      const { said } = await run(india({ locale }), [locale === 'hi' ? 'सीने में दर्द है' : 'I have chest pain']);
+      expect(said.at(-1)).toContain('112');
+      expect(said.join(' ')).not.toMatch(/911|988/);
+    }
+  });
+
+  it('self-harm gives Tele-MANAS 14416 and 112', async () => {
+    const { said } = await run(india({ locale: 'hi' }), ['मैं मरना चाहता हूँ']);
+    expect(said.at(-1)).toContain('14416');
+    expect(said.at(-1)).toContain('112');
+    expect(said.at(-1)).not.toMatch(/911|988/);
+  });
+});

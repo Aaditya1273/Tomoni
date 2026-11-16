@@ -53,8 +53,14 @@ async function contextFor(
     );
   // Rule 2.10: Tomoni calls only people who agreed to be called.
   if (!consent) throw new CallError('no_contact_consent', 'This patient has not agreed to calls.');
-  const { rows } = await db.execute<{ practice: string; doctor: string | null; speech: boolean }>(sql`
+  const { rows } = await db.execute<{
+    practice: string;
+    doctor: string | null;
+    speech: boolean;
+    region: 'US' | 'IN';
+  }>(sql`
     SELECT pr.name AS practice, research.has_active_consent(${patientId}, 'speech_task') AS speech,
+           (SELECT region FROM care.household WHERE id = ${p.householdId}) AS region,
            (SELECT display_name FROM care.clinician c WHERE c.practice_id = pr.id AND c.kind = 'physician'
              ORDER BY created_at LIMIT 1) AS doctor
       FROM care.practice pr WHERE pr.id = ${p.practiceId}`);
@@ -73,6 +79,7 @@ async function contextFor(
     recordingAllowed: consent.recordingAllowed,
     upcoming,
     speechTask: rows[0]?.speech === true,
+    region: rows[0]?.region ?? 'US',
     practiceId: p.practiceId,
     householdId: p.householdId,
   };

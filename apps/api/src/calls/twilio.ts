@@ -5,7 +5,7 @@
  * as the simulator, safety matcher first. Registered only when Twilio is configured.
  */
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { systemScope } from '@tomoni/core';
 import { audit, schema, withScope } from '@tomoni/db';
@@ -68,7 +68,9 @@ export const twilioRoutes =
               .update(schema.call)
               .set({ step: 'ended', outcome: 'voicemail', endedAt: new Date() })
               .where(eq(schema.call.id, callId));
-            return twiml({ say: [line(c.locale, 'voicemail')], locale: c.locale });
+            const { rows } = await db.execute<{ region: 'US' | 'IN' }>(sql`SELECT h.region FROM care.patient p
+              JOIN care.household h ON h.id = p.household_id WHERE p.id = ${c.patientId}`);
+            return twiml({ say: [line(c.locale, 'voicemail', {}, rows[0]?.region)], locale: c.locale });
           }
           try {
             const r = await beginCall(db, {

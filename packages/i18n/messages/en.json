@@ -202,7 +202,8 @@
         "requestPharmacyTransfer": "pharmacy transfer",
         "findStock": "looked for stock",
         "bookPickup": "booked a pickup",
-        "comparePartDPlans": "compared drug plans"
+        "comparePartDPlans": "compared drug plans",
+        "askFamilyToHelp": "asked you for help"
       },
       "type": {
         "run_out": "running out",
@@ -294,7 +295,8 @@
       "mockCancelPlan": "Cancel at the end of this month",
       "mockResume": "Keep daily calls",
       "mockBack": "Go back"
-    }
+    },
+    "askedOnCall": "{name} asked for your help with this on today's call."
   },
   "desk": {
     "queueTitle": "Queue",

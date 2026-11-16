@@ -137,6 +137,11 @@ export default async function FamilyToday({
                         {words[i]!.when}
                       </StatusPill>
                       <p className="text-pretty">{words[i]!.sentence}</p>
+                      {p.region === 'IN' && p.actions.some((a) => a.warningId === w.id) && (
+                        <p className="rounded-panel bg-neel-soft p-3" data-action="asked">
+                          {t('askedOnCall', { name: p.name })}
+                        </p>
+                      )}
                       {p.region === 'US' && (
                         <ActionControls
                           warningId={w.id}

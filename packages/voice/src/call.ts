@@ -14,7 +14,7 @@
  */
 import { matchSafety, topClass, type SafetyClass, type SafetyHit } from '@tomoni/core';
 import { UNCLEAR, type ConversationLLM, type SlotStep } from './llm';
-import { itemLine, line, type UpcomingKind } from './scripts';
+import { itemLine as itemFor, line as lineFor, type Region, type UpcomingKind } from './scripts';
 
 export type Step = 'wellbeing' | 'meds' | 'upcoming' | 'speech_task' | 'ended';
 export type Outcome = 'completed' | 'escalated';
@@ -28,6 +28,8 @@ export interface CallContext {
   upcoming: { kind: UpcomingKind; drug: string; warningId: string }[];
   /** Active research consent with the speech-task scope, checked live on every turn. */
   speechTask?: boolean;
+  /** The household's region: India gets its own emergency numbers and family-led help. */
+  region?: Region;
 }
 
 export interface Turn {
@@ -73,18 +75,22 @@ const URGENCY: Record<SafetyClass, 1 | 2 | 3> = {
   medication_change: 2,
 };
 const now = () => new Date().toISOString();
+const line = (ctx: CallContext, key: Parameters<typeof lineFor>[1], vars?: Record<string, string>) =>
+  lineFor(ctx.locale, key, vars, ctx.region);
+const itemLine = (ctx: CallContext, kind: UpcomingKind, drug: string) =>
+  itemFor(ctx.locale, kind, drug, ctx.region);
 const SKIP = /^(skip|no|no thanks|not today|नहीं|छोड़ो|छोड़िए|आज नहीं)[\s.!।]*$/i;
 
 /** Opening: the AI disclosure always comes first (rule 2.10), then the first question. */
 export function startCall(ctx: CallContext): { state: CallState; say: string[] } {
   const say = [
-    line(ctx.locale, 'disclosure', {
+    line(ctx, 'disclosure', {
       name: ctx.patientName,
       doctor: ctx.doctorName,
       practice: ctx.practiceName,
-      recording: line(ctx.locale, ctx.recordingAllowed ? 'recordingOn' : 'recordingOff'),
+      recording: line(ctx, ctx.recordingAllowed ? 'recordingOn' : 'recordingOff'),
     }),
-    line(ctx.locale, 'wellbeing'),
+    line(ctx, 'wellbeing'),
   ];
   return {
     state: {
@@ -127,7 +133,7 @@ export async function takeTurn(
     state.outcome = outcome;
   };
   const close = () => {
-    say.push(line(ctx.locale, 'closing', v));
+    say.push(line(ctx, 'closing', v));
     end('completed');
   };
   // A clean finish may offer the research task; a flagged call goes straight to close().
@@ -135,7 +141,7 @@ export async function takeTurn(
     if (!ctx.speechTask || state.slots.speech) return close();
     state.step = 'speech_task';
     state.slots.speech = { offeredAt: now() };
-    say.push(line(ctx.locale, 'speechTask'));
+    say.push(line(ctx, 'speechTask'));
   };
 
   // 1. Safety first, on the raw words.
@@ -143,11 +149,11 @@ export async function takeTurn(
   const cls = topClass(hits);
   if (cls === 'emergency' || cls === 'self_harm') {
     flags.push(flagFrom(hits, utterance));
-    say.push(line(ctx.locale, cls === 'self_harm' ? 'selfHarm' : 'emergency', v));
+    say.push(line(ctx, cls === 'self_harm' ? 'selfHarm' : 'emergency', v));
     end('escalated');
   } else if (cls) {
     flags.push(flagFrom(hits, utterance));
-    say.push(line(ctx.locale, 'flagged', v));
+    say.push(line(ctx, 'flagged', v));
     close();
   } else if (state.step === 'speech_task') {
     // Research words: no LLM, and the care transcript keeps a marker instead of them.
@@ -155,7 +161,7 @@ export async function takeTurn(
     sp.status = SKIP.test(utterance.trim()) ? 'skipped' : 'done';
     sp.ms = sp.status === 'done' ? Math.min(120_000, Date.now() - Date.parse(sp.offeredAt)) : 0;
     state.turns[state.turns.length - 1]!.text = '[research speech task]';
-    if (sp.status === 'done') say.push(line(ctx.locale, 'speechThanks'));
+    if (sp.status === 'done') say.push(line(ctx, 'speechThanks'));
     close();
   } else {
     // 2. Only now may the LLM read it, and only to fill this step's slots.
@@ -175,34 +181,34 @@ export async function takeTurn(
         urgency: c === 'emergency' || c === 'self_harm' ? 1 : 3,
       });
       if (c === 'emergency' || c === 'self_harm') {
-        say.push(line(ctx.locale, c === 'self_harm' ? 'selfHarm' : 'emergency', v));
+        say.push(line(ctx, c === 'self_harm' ? 'selfHarm' : 'emergency', v));
         end('escalated');
       } else {
-        say.push(line(ctx.locale, 'flagged', v));
+        say.push(line(ctx, 'flagged', v));
         close();
       }
     } else if (unclear && state.retries === 0) {
       state.retries = 1;
-      say.push(line(ctx.locale, 'unclear'), lastQuestion(state, ctx));
+      say.push(line(ctx, 'unclear'), lastQuestion(state, ctx));
     } else {
       state.retries = 0;
       if (step === 'wellbeing' && 'mood' in slots) {
         state.slots.mood = slots.mood;
         state.step = 'meds';
-        say.push(line(ctx.locale, 'meds'));
+        say.push(line(ctx, 'meds'));
       } else if (step === 'meds' && 'medsTaken' in slots) {
         state.slots.medsTaken = slots.medsTaken;
-        if (slots.medsTaken === 'no' || slots.medsTaken === 'some') say.push(line(ctx.locale, 'medsMissed'));
-        else if (slots.medsTaken === 'yes') say.push(line(ctx.locale, 'medsThanks'));
+        if (slots.medsTaken === 'no' || slots.medsTaken === 'some') say.push(line(ctx, 'medsMissed'));
+        else if (slots.medsTaken === 'yes') say.push(line(ctx, 'medsThanks'));
         nextUpcoming(state, ctx, say, finish);
       } else if (step === 'upcoming' && 'response' in slots) {
         const item = ctx.upcoming[state.upcomingIndex]!;
         if (slots.response === 'wants_help') {
           (state.slots.helpWanted ??= []).push(item.warningId);
-          say.push(line(ctx.locale, 'upcomingHelp'));
+          say.push(line(ctx, 'upcomingHelp'));
         } else {
           (state.slots.declined ??= []).push(item.warningId);
-          say.push(line(ctx.locale, 'upcomingNoThanks'));
+          say.push(line(ctx, 'upcomingNoThanks'));
         }
         state.upcomingIndex++;
         nextUpcoming(state, ctx, say, finish);
@@ -218,12 +224,12 @@ function nextUpcoming(state: CallState, ctx: CallContext, say: string[], finish:
   const item = ctx.upcoming[state.upcomingIndex];
   if (!item) return finish();
   state.step = 'upcoming';
-  say.push(line(ctx.locale, 'upcoming', { item: itemLine(ctx.locale, item.kind, item.drug) }));
+  say.push(line(ctx, 'upcoming', { item: itemLine(ctx, item.kind, item.drug) }));
 }
 
 function lastQuestion(state: CallState, ctx: CallContext): string {
-  if (state.step === 'wellbeing') return line(ctx.locale, 'wellbeing');
-  if (state.step === 'meds') return line(ctx.locale, 'meds');
+  if (state.step === 'wellbeing') return line(ctx, 'wellbeing');
+  if (state.step === 'meds') return line(ctx, 'meds');
   const item = ctx.upcoming[state.upcomingIndex]!;
-  return line(ctx.locale, 'upcoming', { item: itemLine(ctx.locale, item.kind, item.drug) });
+  return line(ctx, 'upcoming', { item: itemLine(ctx, item.kind, item.drug) });
 }

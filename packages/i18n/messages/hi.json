@@ -202,7 +202,8 @@
         "requestPharmacyTransfer": "फ़ार्मेसी बदलना",
         "findStock": "स्टॉक की खोज",
         "bookPickup": "दवा लेने का समय",
-        "comparePartDPlans": "दवा प्लान की तुलना"
+        "comparePartDPlans": "दवा प्लान की तुलना",
+        "askFamilyToHelp": "आपसे मदद माँगी"
       },
       "type": {
         "run_out": "ख़त्म हो रही है",
@@ -294,7 +295,8 @@
       "mockCancelPlan": "इस महीने के आख़िर में रद्द करें",
       "mockResume": "रोज़ की कॉल जारी रखें",
       "mockBack": "वापस जाएँ"
-    }
+    },
+    "askedOnCall": "{name} ने आज की कॉल पर इसमें आपकी मदद माँगी।"
   },
   "desk": {
     "queueTitle": "कतार",

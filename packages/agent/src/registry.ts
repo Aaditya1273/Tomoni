@@ -162,6 +162,21 @@ export const SKILLS = {
     do: async () => ({}),
     verify: async () => ({ ok: true }),
   }),
+
+  /**
+   * India bridge (D-027): no pharmacy or e-prescribing partner acts for a parent in India, so a
+   * "yes, help me" on the call asks the family abroad, live on their card. Nothing else happens.
+   */
+  askFamilyToHelp: define({
+    name: 'askFamilyToHelp',
+    version: 1,
+    input: z.strictObject({}),
+    approval: 'none',
+    adapters: [],
+    confirm: async () => ({}),
+    do: async () => ({ asked: true }),
+    verify: async () => ({ ok: true }),
+  }),
 } satisfies Record<string, Skill>;
 
 export type SkillName = keyof typeof SKILLS;
