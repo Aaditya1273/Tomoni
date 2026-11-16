@@ -66,7 +66,10 @@ export const JobPayloads = {
   'action.run': z.strictObject({ actionId: z.uuid() }),
   'trials.match': z.strictObject({}),
   'research.nightly': z.strictObject({}),
-  'research.audio': z.strictObject({ sampleId: z.uuid(), recordingRef: z.string().regex(/^RE[0-9a-f]{32}$/) }),
+  'research.audio': z.strictObject({
+    sampleId: z.uuid(),
+    recordingRef: z.string().regex(/^RE[0-9a-f]{32}$/),
+  }),
 } as const;
 export type JobName = keyof typeof JobPayloads;
 export type JobData<N extends JobName> = z.infer<(typeof JobPayloads)[N]>;

@@ -20,7 +20,12 @@ import { requireAuth, type AuthContext } from '../auth/session';
 import { beginCall, CallError, callTurn } from './service';
 
 const STAFF = ['physician', 'nurse', 'front_desk'] as const;
-const STATUS: Record<CallError['code'], number> = { not_found: 404, no_contact_consent: 409, ended: 409 };
+const STATUS: Record<CallError['code'], number> = {
+  not_found: 404,
+  no_contact_consent: 409,
+  ended: 409,
+  busy: 409,
+};
 
 export const callRoutes =
   (deps: { llm?: ConversationLLM; simulator: boolean; queue?: Queue }): FastifyPluginAsyncZod =>
@@ -227,8 +232,12 @@ export const callRoutes =
       },
       async (req, reply) => {
         try {
-          const r = await withScope('app', req.auth!.scope, (db) =>
-            callTurn(db, req.params.id, req.body.text, llm, 'simulator'),
+          const r = await callTurn(
+            (fn) => withScope('app', req.auth!.scope, fn),
+            req.params.id,
+            req.body.text,
+            llm,
+            'simulator',
           );
           // "Yes, help me with that" on the call proposes the warning's skill (rule 2.2: closed table).
           for (const w of r.helpWanted) {

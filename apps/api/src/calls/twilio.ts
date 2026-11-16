@@ -127,15 +127,17 @@ export const twilioRoutes =
         const body = req.body as Record<string, string>;
         const said = String(body.SpeechResult ?? '').slice(0, 1000);
         let audio: { start: boolean; over: boolean; sampleId: string | null } | null = null;
-        const out = await withScope('worker', scope, async (db) => {
-          const [c] = await db
+        const [c] = await withScope('worker', scope, (db) =>
+          db
             .select({ locale: schema.call.locale, recordingConsent: schema.call.recordingConsent })
             .from(schema.call)
-            .where(eq(schema.call.id, callId));
-          const locale = c?.locale ?? 'en';
+            .where(eq(schema.call.id, callId)),
+        );
+        const locale = c?.locale ?? 'en';
+        const out = await (async () => {
           if (!said) return twiml({ say: [line(locale, 'unclear')], locale, gatherUrl: turnUrl(callId) });
           try {
-            const r = await callTurn(db, callId, said, deps.llm, 'voice');
+            const r = await callTurn((fn) => withScope('worker', scope, fn), callId, said, deps.llm, 'voice');
             // Audio only with the switch on and a patient who agreed to recording (state laws, D-032).
             if (deps.speechAudio && c?.recordingConsent && (r.speechStarted || r.speechOver))
               audio = { start: r.speechStarted, over: r.speechOver, sampleId: r.speechSampleId };
@@ -147,10 +149,12 @@ export const twilioRoutes =
               ...(r.ended ? {} : { gatherUrl: turnUrl(callId) }),
             });
           } catch (e) {
-            if (e instanceof CallError) return twiml({ say: [], locale });
+            // A turn taken twice keeps listening; an ended or unknown call hangs up.
+            if (e instanceof CallError)
+              return twiml({ say: [], locale, ...(e.code === 'busy' ? { gatherUrl: turnUrl(callId) } : {}) });
             throw e;
           }
-        });
+        })();
         if (audio) await speechAudio(audio, body.CallSid ?? '', req.log);
         return send(reply, out);
       },

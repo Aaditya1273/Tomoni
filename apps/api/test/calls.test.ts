@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 import { EVENTS_CHANNEL } from '@tomoni/contracts';
 import { closePools, env, hashFor, ownerDb, pool, schema } from '@tomoni/db';
-import { MockLLM } from '@tomoni/voice';
+import { MockLLM, type ConversationLLM } from '@tomoni/voice';
 import { buildServer } from '../src/server';
 import { Client, makePracticeAndHousehold, makeUser, ORIGIN, totp } from './helpers';
 
@@ -257,5 +257,50 @@ describe('Voice Lab on the call (rule 2.8, D-009)', () => {
     await expect(pool('app').query('SELECT 1 FROM research.speech_sample')).rejects.toThrow(
       /permission denied/,
     );
+  });
+});
+
+describe('phone scale: the LLM holds no database connection', () => {
+  it('a slow model runs with no open transaction, and a turn racing it gets busy, not applied twice', async () => {
+    const open: number[] = [];
+    const base = new MockLLM();
+    const slowLLM: ConversationLLM = {
+      promptVersion: 'slow',
+      fill: (async (...a: Parameters<ConversationLLM['fill']>) => {
+        const { rows } = await ownerDb().execute<{
+          n: number;
+        }>(sql`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE datname = current_database() AND state LIKE 'idle in transaction%'`);
+        open.push(rows[0]!.n);
+        await new Promise((r) => setTimeout(r, 150));
+        return base.fill(a[0], a[1]);
+      }) as ConversationLLM['fill'],
+    };
+    const slow = await buildServer({ config: { allowedOrigins: [ORIGIN], docs: false }, llm: slowLLM });
+    try {
+      const c = new Client(slow);
+      await c.login((await makeUser('nurse', { practiceId: ids.practiceId })).email);
+      const { secret } = (await c.req('POST', '/api/auth/mfa/enroll')).json();
+      await c.req('POST', '/api/auth/mfa/enroll/confirm', { code: await totp(secret) });
+      const { callId } = (await c.req('POST', '/api/sim/calls', { patientId })).json();
+      // A lone turn: while the model thinks, no transaction is open anywhere.
+      expect((await c.req('POST', `/api/sim/calls/${callId}/turn`, { text: "I'm fine" })).statusCode).toBe(
+        200,
+      );
+      expect(open).toEqual([0]);
+      const [a, b] = await Promise.all([
+        c.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'yes' }),
+        c.req('POST', `/api/sim/calls/${callId}/turn`, { text: 'yes' }),
+      ]);
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+      expect([a, b].find((r) => r.statusCode === 409)!.json().error).toBe('busy');
+      const [row] = await ownerDb()
+        .select()
+        .from(schema.call)
+        .where(sql`id = ${callId}`);
+      expect(JSON.parse(row!.transcript!).filter((t: { who: string }) => t.who === 'caller')).toHaveLength(2);
+    } finally {
+      await slow.close();
+    }
   });
 });

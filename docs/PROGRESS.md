@@ -102,6 +102,7 @@
 - **Drizzle expands JS arrays in SQL templates into lists.** Array parameters now go through `sql.param`.
 - **An open desk tab would have kept a clinical session alive forever.** The SSE heartbeat called the session lookup, which refreshes idle time. It now uses `auth.session_alive()`, which doesn't (0008).
 - **The "disclosure first" CHECK never fired mid-call.** `outcome IN (...)` is NULL while a call is in progress, and a NULL CHECK passes. Fixed in 0009, found by a new RLS test.
+- **Two turns of one call could both apply,** and the LLM held a database transaction open for up to 8 s per live call. A turn is now two short transactions with the model in between, and the write refuses (409 `busy`) if another turn landed first. Proven by a slow-model race test that failed on the old code.
 - **Twilio webhook writes never committed.** The handler returned the Fastify reply (a thenable) from inside the transaction. The TwiML is now built inside the transaction and sent after commit.
 
 ## Known gaps
@@ -121,7 +122,6 @@
 - **Call scripts for gu, ta, pa and bn** fall back to English (D-025). All new Hindi needs native review.
 - **No real pharmacy or e-prescribing partner.** Every agent action runs against labeled mocks. A real partner (Surescripts-certified) is a Go-Live item.
 - **A closure with two medicines makes two transfer actions;** the family card shows the latest one. Phase 4's activity log will list both.
-- **The LLM call runs inside the call's DB transaction** (up to 8 s). That is fine for the simulator, but phone-scale traffic should split it out.
 - **Real Blue Button sandbox not exercised end to end.** It needs client credentials from the CMS developer sandbox (`TOMONI_BB_CLIENT_ID` / `SECRET`, `TOMONI_ADAPTER_BLUEBUTTON=real`). The adapter is tested against a fake server.
 - **No full CMS release loaded yet.** The loader reads the real file format, but only the bundled synthetic sample has been loaded. A full release (gigabytes, plus the pharmacy network file, which isn't loaded at all) needs a streaming loader before production.
 - **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.

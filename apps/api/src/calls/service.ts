@@ -1,6 +1,6 @@
 /**
  * One call turn against the database: load the call, run the state machine, write flags with
- * their outbox events and audit rows, and save the call, all in the caller's transaction.
+ * their outbox events and audit rows, and save the call.
  * Shared by the simulator now and the telephony webhooks later.
  */
 import { and, eq, sql } from 'drizzle-orm';
@@ -24,7 +24,7 @@ interface Stored {
 
 export class CallError extends Error {
   constructor(
-    public code: 'not_found' | 'no_contact_consent' | 'ended',
+    public code: 'not_found' | 'no_contact_consent' | 'ended' | 'busy',
     message: string,
   ) {
     super(message);
@@ -128,16 +128,28 @@ export async function beginCall(
   return { callId: c.id, say, ended: false, outcome: null, flags: [] };
 }
 
+/** Runs one function in its own transaction, under the caller's role and scope. */
+export type Tx = <T>(fn: (db: Db) => Promise<T>) => Promise<T>;
+
+/**
+ * One caller turn in two short transactions, with the LLM in between holding no connection: a
+ * slow model can't pin a database connection per live call. The write re-reads the row under a
+ * lock and refuses if another turn landed meanwhile, so a retried webhook can't apply twice.
+ */
 export async function callTurn(
-  db: Db,
+  tx: Tx,
   callId: string,
   text: string,
   llm: ConversationLLM,
   channel: 'simulator' | 'voice',
 ) {
-  const [c] = await db.select().from(schema.call).where(eq(schema.call.id, callId));
-  if (!c) throw new CallError('not_found', 'No such call.');
-  if (c.step === 'ended') throw new CallError('ended', 'This call has ended.');
+  const { c, ctx, practiceId, householdId } = await tx(async (db) => {
+    const [c] = await db.select().from(schema.call).where(eq(schema.call.id, callId));
+    if (!c) throw new CallError('not_found', 'No such call.');
+    if (c.step === 'ended') throw new CallError('ended', 'This call has ended.');
+    const { practiceId, householdId, ...ctx } = await contextFor(db, c.patientId);
+    return { c, ctx, practiceId, householdId };
+  });
   const stored = c.slots as unknown as Stored;
   const prev: CallState = {
     ...stored.state,
@@ -146,68 +158,73 @@ export async function callTurn(
     turns: JSON.parse(c.transcript ?? '[]'),
   };
   // The items offered at the start stay fixed for the whole call.
-  const { practiceId, householdId, ...ctx } = await contextFor(db, c.patientId);
   const r = await takeTurn(prev, { ...ctx, upcoming: stored.upcoming }, text, llm);
 
-  const flags = [];
-  for (const f of r.flags)
-    flags.push(
-      await raiseFlag(db, { ...f, patientId: c.patientId, callId, channel, practiceId, householdId }),
-    );
+  return tx(async (db) => {
+    const [now] = await db.select().from(schema.call).where(eq(schema.call.id, callId)).for('update');
+    if (!now || now.step !== c.step || now.transcript !== c.transcript)
+      throw new CallError('busy', 'Another turn of this call was taken first.');
 
-  const ended = r.state.step === 'ended';
-  const speech = r.state.slots.speech;
-  // Research (rule 2.8, D-009): the sample goes to the research schema under a pseudonym, and
-  // its seconds are kept out of care time. Null when consent is gone by now: nothing is stored.
-  const speechSampleId =
-    speech?.status === 'done' && !prev.slots.speech?.status
-      ? ((
-          await db.execute<{ id: string | null }>(
-            sql`SELECT research.record_speech_sample(${callId}, 'describe_yesterday', 1, ${speech.ms ?? 0}) AS id`,
-          )
-        ).rows[0]?.id ?? null)
-      : null;
-  const researchSeconds = Math.round((speech?.ms ?? 0) / 1000);
-  const { turns: _t, step, outcome, ...rest } = r.state;
-  await db
-    .update(schema.call)
-    .set({
-      step,
-      outcome,
-      slots: { state: rest, upcoming: stored.upcoming } as never,
-      transcript: JSON.stringify(r.state.turns),
-      ...(ended
-        ? {
-            endedAt: new Date(),
-            careSeconds: sql`greatest(0, extract(epoch FROM now() - started_at)::int - ${researchSeconds})`,
-            researchSeconds,
-          }
-        : {}),
-    })
-    .where(eq(schema.call.id, callId));
-  await audit(db, {
-    action: 'update',
-    entityType: 'call',
-    entityId: callId,
-    patientId: c.patientId,
-    purpose: 'treatment',
-    details: { step, flags: flags.length },
+    const flags = [];
+    for (const f of r.flags)
+      flags.push(
+        await raiseFlag(db, { ...f, patientId: c.patientId, callId, channel, practiceId, householdId }),
+      );
+
+    const ended = r.state.step === 'ended';
+    const speech = r.state.slots.speech;
+    // Research (rule 2.8, D-009): the sample goes to the research schema under a pseudonym, and
+    // its seconds are kept out of care time. Null when consent is gone by now: nothing is stored.
+    const speechSampleId =
+      speech?.status === 'done' && !prev.slots.speech?.status
+        ? ((
+            await db.execute<{ id: string | null }>(
+              sql`SELECT research.record_speech_sample(${callId}, 'describe_yesterday', 1, ${speech.ms ?? 0}) AS id`,
+            )
+          ).rows[0]?.id ?? null)
+        : null;
+    const researchSeconds = Math.round((speech?.ms ?? 0) / 1000);
+    const { turns: _t, step, outcome, ...rest } = r.state;
+    await db
+      .update(schema.call)
+      .set({
+        step,
+        outcome,
+        slots: { state: rest, upcoming: stored.upcoming } as never,
+        transcript: JSON.stringify(r.state.turns),
+        ...(ended
+          ? {
+              endedAt: new Date(),
+              careSeconds: sql`greatest(0, extract(epoch FROM now() - started_at)::int - ${researchSeconds})`,
+              researchSeconds,
+            }
+          : {}),
+      })
+      .where(eq(schema.call.id, callId));
+    await audit(db, {
+      action: 'update',
+      entityType: 'call',
+      entityId: callId,
+      patientId: c.patientId,
+      purpose: 'treatment',
+      details: { step, flags: flags.length },
+    });
+    const before = new Set(prev.slots.helpWanted ?? []);
+    const helpWanted = (r.state.slots.helpWanted ?? []).filter((w) => !before.has(w));
+    return {
+      callId,
+      say: r.say,
+      ended,
+      outcome: ended ? outcome : null,
+      flags,
+      helpWanted,
+      speechTask: step === 'speech_task',
+      /** Voice Lab audio (D-032): the task began this turn, or ended (done, skipped or cut short). */
+      speechStarted: step === 'speech_task' && prev.step !== 'speech_task',
+      speechOver: prev.step === 'speech_task' && step !== 'speech_task',
+      speechSampleId,
+    };
   });
-  const before = new Set(prev.slots.helpWanted ?? []);
-  const helpWanted = (r.state.slots.helpWanted ?? []).filter((w) => !before.has(w));
-  return {
-    callId,
-    say: r.say,
-    ended,
-    outcome: ended ? outcome : null,
-    flags,
-    helpWanted,
-    speechTask: step === 'speech_task',
-    /** Voice Lab audio (D-032): the task began this turn, or ended (done, skipped or cut short). */
-    speechStarted: step === 'speech_task' && prev.step !== 'speech_task',
-    speechOver: prev.step === 'speech_task' && step !== 'speech_task',
-    speechSampleId,
-  };
 }
 
 /** A nurse flag, its live event (no PHI in the payload) and its audit row, in one transaction. */

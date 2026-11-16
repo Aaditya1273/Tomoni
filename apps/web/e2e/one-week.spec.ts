@@ -89,6 +89,7 @@ test.describe.serial('one week in Tomoni', () => {
   test('Friday: Dr. Rao signs the care plan; the month is billable', async ({ browser }) => {
     const doc = await staff(browser, 'dr.rao@demo.tomoni.test');
     await doc.getByRole('link', { name: 'APCM billing' }).click();
+    await doc.getByRole('button', { name: 'Check this month' }).click(); // the table fills on a check
     await doc.locator('tr').filter({ hasText: 'Raj Patel' }).getByRole('link', { name: 'Raj Patel' }).click();
     await expect(doc.getByRole('heading', { name: 'Care plan', exact: true })).toBeVisible();
     if (await doc.getByRole('button', { name: 'Draft care plan' }).isVisible()) {
