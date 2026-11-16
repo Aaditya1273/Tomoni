@@ -142,15 +142,19 @@ export default async function FamilyToday({
                           {t('askedOnCall', { name: p.name })}
                         </p>
                       )}
-                      {p.region === 'US' && (
-                        <ActionControls
-                          warningId={w.id}
-                          drug={w.drug ? drugName(w.drug) : ''}
-                          {...(p.actions.findLast((a) => a.warningId === w.id)
-                            ? { action: p.actions.findLast((a) => a.warningId === w.id)! }
-                            : {})}
-                        />
-                      )}
+                      {p.region === 'US' &&
+                        (() => {
+                          // One action per medicine: a closure with two medicines needs two approvals.
+                          const acts = p.actions.filter((a) => a.warningId === w.id);
+                          const drug = w.drug ? drugName(w.drug) : '';
+                          return acts.length ? (
+                            acts.map((a) => (
+                              <ActionControls key={a.id} warningId={w.id} drug={drug} action={a} />
+                            ))
+                          ) : (
+                            <ActionControls warningId={w.id} drug={drug} />
+                          );
+                        })()}
                       <p className="text-sm text-muted">
                         {words[i]!.source}.{' '}
                         <Link

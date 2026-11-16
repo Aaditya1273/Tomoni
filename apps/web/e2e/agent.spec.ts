@@ -14,16 +14,24 @@ test.describe.serial('agent actions', () => {
     await signIn(page, 'asha@demo.tomoni.test');
     const closure = kokila(page).locator('li[data-warning="pharmacy_closure"]');
     await closure.getByRole('button', { name: 'Ask Tomoni to help' }).click();
+    // Two medicines at the closing pharmacy: two transfers, each its own tap (the card once hid one).
     const ask = closure.locator('[data-action="needs-you"]');
-    await expect(ask).toContainText(
-      /^Move (Levothyroxine|Losartan) .+ to Main Street Pharmacy\? Tomoni will contact both pharmacies/,
-    );
+    await expect(ask).toHaveCount(2);
+    for (const drug of ['Levothyroxine', 'Losartan'])
+      await expect(ask.filter({ hasText: `Move ${drug}` })).toContainText(
+        /to Main Street Pharmacy\? Tomoni will contact both pharmacies/,
+      );
     await expectAccessible(page);
     await snap(page, info, 'family-approval');
-    await ask.getByRole('button', { name: 'Approve' }).click();
-    await expect(closure.locator('[data-action="succeeded"]')).toHaveText('Moved to Main Street Pharmacy.', {
-      timeout: 15_000,
-    });
+    for (const drug of ['Levothyroxine', 'Losartan'])
+      await ask
+        .filter({ hasText: `Move ${drug}` })
+        .getByRole('button', { name: 'Approve' })
+        .click();
+    await expect(closure.locator('[data-action="succeeded"]')).toHaveCount(2, { timeout: 15_000 });
+    await expect(closure.locator('[data-action="succeeded"]').first()).toHaveText(
+      'Moved to Main Street Pharmacy.',
+    );
   });
 
   test('a renewal goes to the doctor; once signed, the family sees it done', async ({ page, browser }) => {
