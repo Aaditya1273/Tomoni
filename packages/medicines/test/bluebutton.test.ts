@@ -94,7 +94,23 @@ describe('mapEob', () => {
       startDate: '2026-09-02',
       endDate: '2026-09-02',
       dxCodes: ['E11.9'],
+      edVisit: false,
     });
+  });
+
+  it('an outpatient claim with an emergency-room revenue center is an ED visit; nothing else is', () => {
+    const eob = (code: string, rev: string) => ({
+      resourceType: 'ExplanationOfBenefit',
+      id: `${code}-${rev}`,
+      type: { coding: [{ system: 'https://bluebutton.cms.gov/resources/codesystem/eob-type', code }] },
+      billablePeriod: { start: '2026-09-02' },
+      item: [{ revenue: { coding: [{ code: rev }] }, productOrService: { coding: [{ code: '99284' }] } }],
+    });
+    const ed = (code: string, rev: string) => (mapEob(eob(code, rev)) as { edVisit: boolean }).edVisit;
+    expect(ed('OUTPATIENT', '0450')).toBe(true);
+    expect(ed('OUTPATIENT', '0981')).toBe(true);
+    expect(ed('OUTPATIENT', '0300')).toBe(false); // lab
+    expect(ed('CARRIER', '0450')).toBe(false);
   });
 });
 

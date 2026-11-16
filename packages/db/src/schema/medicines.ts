@@ -184,6 +184,7 @@ export const claim = care.table('claim', {
   startDate: date('start_date').notNull(),
   endDate: date('end_date'),
   dxCodes: textArray('dx_codes').notNull().default([]),
+  edVisit: boolean('ed_visit').notNull().default(false),
   source: text().$type<FillSource>().notNull(),
   sourceRef: text('source_ref').notNull(),
   ingestedAt: ts('ingested_at').notNull().defaultNow(),

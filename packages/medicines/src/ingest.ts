@@ -112,6 +112,7 @@ export async function ingestBundles(
           startDate: c.startDate,
           endDate: c.endDate,
           dxCodes: c.dxCodes,
+          edVisit: c.edVisit,
           source,
           sourceRef: c.sourceRef,
         })),

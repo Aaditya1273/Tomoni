@@ -37,6 +37,7 @@ export const Eob = z.object({
     .array(
       z.object({
         productOrService: Concept,
+        revenue: Concept.optional(),
         servicedDate: z.iso.date().optional(),
         quantity: z.object({ value: z.number() }).optional(),
         adjudication: z
@@ -68,6 +69,8 @@ export interface MappedClaim {
   startDate: string;
   endDate: string | null;
   dxCodes: string[];
+  /** Outpatient with an emergency-room revenue center (045x, 0981). */
+  edVisit: boolean;
 }
 
 const EOB_TYPE = 'https://bluebutton.cms.gov/resources/codesystem/eob-type';
@@ -148,6 +151,9 @@ export function mapEob(raw: unknown): MappedFill | MappedClaim | null {
           .filter((c): c is string => !!c && /^[A-Z0-9.]{3,8}$/.test(c)),
       ),
     ].slice(0, 25),
+    edVisit:
+      kind === 'outpatient' &&
+      (e.item ?? []).some((i) => codes(i.revenue).some((c) => /^(045\d|0981)$/.test(c.code ?? ''))),
   };
 }
 

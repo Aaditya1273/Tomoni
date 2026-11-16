@@ -157,7 +157,28 @@ describe('Voice Lab (rules 2.5, 2.8)', () => {
       extracted: 1,
     });
     expect(heard).toEqual([wav().length]); // the stored audio, decrypted, goes to the service
-    expect(await worker(labelOutcomes)).toEqual({ labelled: 1 });
+    const claim = (o: Partial<typeof schema.claim.$inferInsert>) =>
+      db.insert(schema.claim).values({
+        patientId,
+        kind: 'carrier',
+        startDate: '2099-01-01',
+        source: 'mock',
+        sourceRef: `vl-${crypto.randomUUID()}`,
+        ...o,
+      });
+    await claim({ startDate: '2000-01-01', dxCodes: ['E11.9'] }); // diabetes, before the study
+    await claim({ dxCodes: ['E11.65', 'I48.91'] }); // E11 is not new; I48 (atrial fibrillation) is
+    await claim({ startDate: '2099-02-01', dxCodes: ['I48.0'] }); // I48 again: not new any more
+    await claim({ kind: 'outpatient', edVisit: true, dxCodes: ['E11.9'] });
+    expect(await worker(labelOutcomes)).toEqual({ labelled: 3 }); // stay, ED visit, one new dx
+    const kinds = await db.execute<{ kind: string; start_date: string }>(
+      sql`SELECT kind, start_date::text FROM research.outcome_label ORDER BY kind`,
+    );
+    expect(kinds.rows).toEqual([
+      { kind: 'ed_visit', start_date: '2099-01-01' },
+      { kind: 'inpatient_stay', start_date: '2026-11-20' },
+      { kind: 'new_dx', start_date: '2099-01-01' },
+    ]);
     expect(await worker(labelOutcomes)).toEqual({ labelled: 0 });
     const { rows } = await db.execute<{ feature_version: string }>(
       sql`SELECT feature_version FROM research.speech_sample`,

@@ -40,15 +40,33 @@ export async function extractPending(db: Db, svc: FeatureService, store: ObjectS
   return { pending: rows.length, extracted: done };
 }
 
-/** Outcome labels from claims (hospital stays), for people in the speech dataset only. */
+/**
+ * Outcome labels from claims, for people in the speech dataset only: hospital stays, emergency
+ * visits, and new diagnoses. A new diagnosis is an ICD-10 category (first three characters) that
+ * first appears in a claim dated after the person's first speech sample, labelled at that claim.
+ */
 export async function labelOutcomes(db: Db) {
   const { rows } = await db.execute<{ n: number }>(sql`
-    WITH ins AS (
+    WITH people AS (
+      SELECT r.research_pid, r.patient_id, min(s.recorded_on) AS baseline
+        FROM research.research_id r JOIN research.speech_sample s ON s.research_pid = r.research_pid
+       GROUP BY r.research_pid, r.patient_id),
+    events AS (
+      SELECT p.research_pid, 'inpatient_stay' AS kind, c.start_date, c.id
+        FROM care.claim c JOIN people p ON p.patient_id = c.patient_id WHERE c.kind = 'inpatient'
+      UNION ALL
+      SELECT p.research_pid, 'ed_visit', c.start_date, c.id
+        FROM care.claim c JOIN people p ON p.patient_id = c.patient_id WHERE c.ed_visit
+      UNION ALL
+      SELECT DISTINCT p.research_pid, 'new_dx', c.start_date, c.id
+        FROM care.claim c JOIN people p ON p.patient_id = c.patient_id, unnest(c.dx_codes) d(code)
+       WHERE c.start_date > p.baseline
+         AND NOT EXISTS (SELECT 1 FROM care.claim e, unnest(e.dx_codes) ed(code)
+                          WHERE e.patient_id = c.patient_id AND e.start_date < c.start_date
+                            AND left(ed.code, 3) = left(d.code, 3))),
+    ins AS (
       INSERT INTO research.outcome_label (research_pid, kind, start_date, source_claim_id)
-      SELECT r.research_pid, 'inpatient_stay', c.start_date, c.id
-        FROM care.claim c JOIN research.research_id r ON r.patient_id = c.patient_id
-       WHERE c.kind = 'inpatient'
-         AND EXISTS (SELECT 1 FROM research.speech_sample s WHERE s.research_pid = r.research_pid)
+      SELECT research_pid, kind, start_date, id FROM events
       ON CONFLICT DO NOTHING RETURNING 1)
     SELECT count(*)::int AS n FROM ins`);
   return { labelled: rows[0]?.n ?? 0 };

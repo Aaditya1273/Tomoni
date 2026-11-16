@@ -124,7 +124,14 @@ function pde(
   };
 }
 
-function visit(id: string, kind: 'CARRIER' | 'INPATIENT', start: string, end: string, dx: string[]) {
+function visit(
+  id: string,
+  kind: 'CARRIER' | 'INPATIENT' | 'OUTPATIENT',
+  start: string,
+  end: string,
+  dx: string[],
+  revenue?: string,
+) {
   return {
     resourceType: 'ExplanationOfBenefit',
     id,
@@ -135,6 +142,23 @@ function visit(id: string, kind: 'CARRIER' | 'INPATIENT', start: string, end: st
       sequence: i + 1,
       diagnosisCodeableConcept: { coding: [{ system: 'http://hl7.org/fhir/sid/icd-10-cm', code }] },
     })),
+    ...(revenue
+      ? {
+          item: [
+            {
+              sequence: 1,
+              revenue: {
+                coding: [
+                  { system: 'https://bluebutton.cms.gov/resources/variables/rev_cntr', code: revenue },
+                ],
+              },
+              productOrService: {
+                coding: [{ system: 'https://bluebutton.cms.gov/resources/codesystem/hcpcs', code: '99284' }],
+              },
+            },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -215,6 +239,10 @@ export function synthBundle(inp: SynthInput) {
         dx[0] ?? 'I50.9',
       ]),
     });
+  }
+  if (rnd() < 0.06) {
+    const day = addDays(inp.refDate, -(10 + Math.floor(rnd() * 150)));
+    entry.push({ resource: visit(`ed-${tag}-${compact(day)}`, 'OUTPATIENT', day, day, ['R07.9'], '0450') });
   }
   return { resourceType: 'Bundle', type: 'searchset', total: entry.length, entry };
 }
