@@ -108,13 +108,12 @@
 - **Performance numbers are from one laptop.** Production needs its own k6 run on production-sized data and hardware, and the Lighthouse run covers the family card only (the desk is keyboard-first and not scored).
 - **TLS, encryption at rest and point-in-time recovery** belong to the hosting setup and are on the GO_LIVE_CHECKLIST; locally everything runs over plain http.
 - **Alerts go to one webhook.** Eight rules and the routing are provisioned (RUNBOOK "Alerts"); the pager, the rota and escalation tiers are a hosting decision (GO_LIVE_CHECKLIST).
-- **No audio is captured for the speech task yet.** The simulator has none, and the Twilio path uses `<Gather>` speech recognition. Samples record duration only, and features come from the labelled mock until a `<Record>` step stores audio in the research bucket. Counsel must also confirm D-009 (research inside a billed care call).
+- **Speech-task audio is built but off** (`TOMONI_SPEECH_AUDIO`, D-032), and untested against Twilio itself, like the rest of telephony. The simulator captures no audio, so simulator samples get labelled mock features. Counsel must also confirm D-009 (research inside a billed care call).
 - **Outcome labels cover hospital stays only.** ED visits and new diagnoses need claim types the mapper doesn't produce yet.
 - **The voice pre-screen** (ethics-approved questions on the daily call) is not built; the doctor can introduce from a match directly. It arrives with Phase 6's call changes.
 - **The research protocol summary** is complete in English and Hindi only, and is a demo text; a real one comes from the IRB-approved consent document.
 - **Sponsor usage shows exact unit counts** because it is an invoice. It names no one, but together with a small funnel it can reveal that one person progressed. Counsel should confirm (add to D-010 review).
 - **There is no research coordinator role yet;** admin stands in.
-- **Times on family pages show in UTC.** Calendar dates are right; time-of-day needs the viewer's time zone.
 - **Care-plan goals are templates** for common conditions; the physician edits by drafting a new version (no inline editor yet).
 - **APCM rates in the report are national**; local adjustments (GPCI) are not applied.
 - **Live LLM eval not run.** No Anthropic credentials on this machine. Run `pnpm --filter @tomoni/voice eval` with credentials before turning on `TOMONI_ADAPTER_LLM=real`.
@@ -133,4 +132,4 @@
 - **Open decisions:** D-007 to D-011, D-014 and D-019.
 
 ## Next
-Work the GO_LIVE_CHECKLIST with counsel, the IRB and a clinical reviewer. In code: the speech-task audio step.
+Work the GO_LIVE_CHECKLIST with counsel, the IRB and a clinical reviewer. In code, the remaining items are in Known gaps.

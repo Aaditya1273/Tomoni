@@ -21,6 +21,18 @@ export interface FeatureInput {
   wav: Uint8Array | null;
 }
 
+/** A trust boundary: only 16-bit PCM WAV under 2 minutes goes to storage and the ML service. */
+export function isPcm16Wav(b: Uint8Array) {
+  const buf = Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+  if (buf.length < 44 || buf.length > 8 * 1024 * 1024) return false;
+  if (buf.toString('latin1', 0, 4) !== 'RIFF' || buf.toString('latin1', 8, 12) !== 'WAVE') return false;
+  for (let o = 12; o + 8 <= buf.length; o += 8 + buf.readUInt32LE(o + 4) + (buf.readUInt32LE(o + 4) % 2)) {
+    if (buf.toString('latin1', o, o + 4) !== 'fmt ') continue;
+    return o + 24 <= buf.length && buf.readUInt16LE(o + 8) === 1 && buf.readUInt16LE(o + 22) === 16;
+  }
+  return false;
+}
+
 export interface FeatureService {
   readonly mode: 'mock' | 'real';
   /** Null when there is nothing to extract from. */

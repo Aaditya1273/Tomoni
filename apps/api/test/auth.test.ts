@@ -231,6 +231,11 @@ describe('PHI-free logs (SECURITY S13)', () => {
       expect(log).not.toContain(secret);
     }
   });
+
+  it('logging a non-Error as err never throws, and is scrubbed too', () => {
+    expect(() => s.app.log.warn({ err: 'call 732-555-0199 failed' }, 'x')).not.toThrow();
+    expect(s.logText()).toContain('call [redacted] failed');
+  });
 });
 
 describe('system', () => {

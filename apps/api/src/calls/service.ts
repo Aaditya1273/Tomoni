@@ -159,10 +159,14 @@ export async function callTurn(
   const speech = r.state.slots.speech;
   // Research (rule 2.8, D-009): the sample goes to the research schema under a pseudonym, and
   // its seconds are kept out of care time. Null when consent is gone by now: nothing is stored.
-  if (speech?.status === 'done' && !prev.slots.speech?.status)
-    await db.execute(
-      sql`SELECT research.record_speech_sample(${callId}, 'describe_yesterday', 1, ${speech.ms ?? 0})`,
-    );
+  const speechSampleId =
+    speech?.status === 'done' && !prev.slots.speech?.status
+      ? ((
+          await db.execute<{ id: string | null }>(
+            sql`SELECT research.record_speech_sample(${callId}, 'describe_yesterday', 1, ${speech.ms ?? 0}) AS id`,
+          )
+        ).rows[0]?.id ?? null)
+      : null;
   const researchSeconds = Math.round((speech?.ms ?? 0) / 1000);
   const { turns: _t, step, outcome, ...rest } = r.state;
   await db
@@ -199,6 +203,10 @@ export async function callTurn(
     flags,
     helpWanted,
     speechTask: step === 'speech_task',
+    /** Voice Lab audio (D-032): the task began this turn, or ended (done, skipped or cut short). */
+    speechStarted: step === 'speech_task' && prev.step !== 'speech_task',
+    speechOver: prev.step === 'speech_task' && step !== 'speech_task',
+    speechSampleId,
   };
 }
 

@@ -9,7 +9,8 @@ import { eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { systemScope } from '@tomoni/core';
 import { audit, schema, withScope } from '@tomoni/db';
-import { line, verifyTwilio, type ConversationLLM } from '@tomoni/voice';
+import type { Queue } from 'bullmq';
+import { line, verifyTwilio, type ConversationLLM, type Telephony } from '@tomoni/voice';
 import { beginCall, CallError, callTurn } from './service';
 
 const LANG: Record<string, string> = { hi: 'hi-IN', gu: 'gu-IN', ta: 'ta-IN', pa: 'pa-IN', bn: 'bn-IN' };
@@ -31,7 +32,14 @@ function twiml(o: { say: string[]; locale: string; gatherUrl?: string; long?: bo
 const Params = z.object({ callId: z.uuid() });
 
 export const twilioRoutes =
-  (deps: { authToken: string; publicApiOrigin: string; llm: ConversationLLM }): FastifyPluginAsync =>
+  (deps: {
+    authToken: string;
+    publicApiOrigin: string;
+    llm: ConversationLLM;
+    speechAudio: boolean;
+    telephony: Telephony;
+    queue: Queue;
+  }): FastifyPluginAsync =>
   async (app) => {
     app.addContentTypeParser(
       'application/x-www-form-urlencoded',
@@ -53,6 +61,28 @@ export const twilioRoutes =
     // Handlers build the TwiML inside the transaction and send it after commit.
     const send = (reply: FastifyReply, body: string) => reply.type('text/xml').send(body);
     const turnUrl = (id: string) => `${deps.publicApiOrigin}/api/voice/twilio/${id}/turn`;
+
+    /**
+     * Voice Lab audio (D-032): record the patient's side for the speech task only. <Gather> keeps
+     * transcribing, so the safety matcher still hears an emergency said mid-task (rule 2.1).
+     * Research never breaks the care call: a failure here is logged and the call goes on.
+     */
+    const speechAudio = async (
+      a: { start: boolean; over: boolean; sampleId: string | null },
+      callSid: string,
+      log: FastifyRequest['log'],
+    ) => {
+      try {
+        if (a.start) await deps.telephony.startRecording(callSid);
+        if (!a.over) return;
+        const { ref } = await deps.telephony.stopRecording(callSid);
+        // Skipped, cut short by a flag, or no consent any more: no sample, so the audio goes.
+        if (a.sampleId) await deps.queue.add('research.audio', { sampleId: a.sampleId, recordingRef: ref });
+        else await deps.telephony.deleteRecording(ref);
+      } catch (e) {
+        log.warn({ err: e }, 'speech audio skipped');
+      }
+    };
 
     app.post(
       '/api/voice/twilio/:callId/answer',
@@ -94,16 +124,21 @@ export const twilioRoutes =
       { preHandler: signed, config: { rateLimit: false } },
       async (req, reply) => {
         const { callId } = Params.parse(req.params);
-        const said = String((req.body as Record<string, string>).SpeechResult ?? '').slice(0, 1000);
+        const body = req.body as Record<string, string>;
+        const said = String(body.SpeechResult ?? '').slice(0, 1000);
+        let audio: { start: boolean; over: boolean; sampleId: string | null } | null = null;
         const out = await withScope('worker', scope, async (db) => {
           const [c] = await db
-            .select({ locale: schema.call.locale })
+            .select({ locale: schema.call.locale, recordingConsent: schema.call.recordingConsent })
             .from(schema.call)
             .where(eq(schema.call.id, callId));
           const locale = c?.locale ?? 'en';
           if (!said) return twiml({ say: [line(locale, 'unclear')], locale, gatherUrl: turnUrl(callId) });
           try {
             const r = await callTurn(db, callId, said, deps.llm, 'voice');
+            // Audio only with the switch on and a patient who agreed to recording (state laws, D-032).
+            if (deps.speechAudio && c?.recordingConsent && (r.speechStarted || r.speechOver))
+              audio = { start: r.speechStarted, over: r.speechOver, sampleId: r.speechSampleId };
             // The research task is a 20-second narration: wait out short pauses instead of cutting in.
             return twiml({
               say: r.say,
@@ -116,6 +151,7 @@ export const twilioRoutes =
             throw e;
           }
         });
+        if (audio) await speechAudio(audio, body.CallSid ?? '', req.log);
         return send(reply, out);
       },
     );
@@ -125,7 +161,18 @@ export const twilioRoutes =
       { preHandler: signed, config: { rateLimit: false } },
       async (req, reply) => {
         const { callId } = Params.parse(req.params);
-        const status = String((req.body as Record<string, string>).CallStatus ?? '');
+        const body = req.body as Record<string, string>;
+        const status = String(body.CallStatus ?? '');
+        // A hang-up during the speech task leaves a recording with no sample: delete it (D-032).
+        if (status === 'completed' && deps.speechAudio && body.CallSid) {
+          const [c] = await withScope('worker', scope, (db) =>
+            db.select({ step: schema.call.step }).from(schema.call).where(eq(schema.call.id, callId)),
+          );
+          if (c?.step === 'speech_task')
+            await deps.telephony
+              .deleteCallRecordings(body.CallSid)
+              .catch((e: unknown) => req.log.warn({ err: e }, 'speech audio cleanup failed'));
+        }
         const outcome = { 'no-answer': 'no_answer', busy: 'no_answer', failed: 'failed', canceled: 'failed' }[
           status
         ] as 'no_answer' | 'failed' | undefined;

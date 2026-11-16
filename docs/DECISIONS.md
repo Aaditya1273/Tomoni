@@ -35,6 +35,7 @@ Each entry records the options, the choice and the reason. `NEEDS-FOUNDER-REVIEW
 | D-029 | The speech task's words never enter the care record | Accepted |
 | D-030 | India family plan: $29 a month, Stripe Checkout, calls gated on payment with a past-due grace | NEEDS-FOUNDER-REVIEW |
 | D-031 | The India call: 112 and Tele-MANAS, the family is the one who acts | NEEDS-CLINICAL-REVIEW |
+| D-032 | Voice Lab audio: the patient's side of the speech task only, off until counsel signs off | NEEDS-COUNSEL-REVIEW |
 
 ## D-002: Two web apps, not four
 Options: (a) four Next.js apps, one per surface; (b) one app for everything; (c) one PHI app plus a separate sponsor app.
@@ -181,4 +182,11 @@ The daily call was written for a US practice. For a parent in India (household r
 - **Who is calling:** "Your family set up this daily call for you with Tomoni India Care Team", not "from your doctor's office". There is no Tomoni doctor in India, so the opening line says what is true (rule 2.10).
 - **Who acts:** no pharmacy or e-prescribing partner can act for a parent in India. So the call asks "Shall I ask your family to help with it?", and a yes runs the `askFamilyToHelp` skill, which does nothing but show "Sunita-ben asked for your help with this on today's call" live on the family card. A run-out says the parent may need to see their doctor for a new prescription. The family app offers no agent actions for India.
 - **Still to review:** a clinician confirms the India scripts and escalation path, and a native speaker reviews the Hindi (and writes Gujarati, which Sunita-ben's household uses; it falls back to English today, D-025).
+
+## D-032: Voice Lab audio capture (NEEDS-COUNSEL-REVIEW)
+Speech features need audio. On a phone call, the speech task now records the patient's side, with three conditions. `TOMONI_SPEECH_AUDIO=on` is set, the patient agreed to recording (the opening line says the call is recorded, which covers all-party-consent states), and their speech-task consent is active.
+- **Safety stays live:** recording uses Twilio's call-recording API on the inbound track. `<Gather>` keeps transcribing, so an emergency said mid-task is still matched and handled (rule 2.1). A `<Record>` verb would have stopped recognition for the length of the task, so it was rejected.
+- **Only the task:** recording starts when the task is offered and stops when it ends. Tomoni's own voice is never recorded.
+- **What happens to the audio:** a task that ends with a sample queues `research.audio`. The worker fetches the WAV, accepts only 16-bit PCM under 8 MB, stores it AES-256-GCM encrypted under the pseudonym (`research/audio/<research_pid>/<sample>.wav`), and deletes the vendor's copy. A skipped or flagged task, a withdrawal before storage, or a hang-up mid-task deletes the vendor's copy instead. The nightly job sends stored audio to the feature service.
+- **Still to decide:** whether a withdrawal deletes stored audio or only hides it (RLS hides it today; the consent document decides), Twilio's own retention settings, and the research bucket's production home (S3 with its own key, D-005).
 

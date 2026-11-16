@@ -34,7 +34,7 @@ import { familyExtraRoutes } from './family/routes';
 import { familyMedicineRoutes } from './family/medicines';
 import { researchRoutes } from './research/routes';
 import { sponsorRoutes } from './sponsor/routes';
-import { llmFromEnv } from '@tomoni/voice';
+import { llmFromEnv, telephonyFromEnv, type Telephony } from '@tomoni/voice';
 
 export interface BuildOptions {
   config?: Partial<ApiConfig>;
@@ -45,6 +45,8 @@ export interface BuildOptions {
   llm?: ConversationLLM;
   /** Tests inject a payment provider; otherwise TOMONI_ADAPTER_BILLING decides. */
   billing?: BillingProvider;
+  /** Tests inject telephony; otherwise TOMONI_ADAPTER_TELEPHONY decides. */
+  telephony?: Telephony;
 }
 
 export async function buildServer(opts: BuildOptions = {}) {
@@ -157,6 +159,9 @@ export async function buildServer(opts: BuildOptions = {}) {
       ...(opts.billing ? { provider: opts.billing } : {}),
     }),
   );
-  if (config.twilio) await app.register(twilioRoutes({ ...config.twilio, llm }));
+  if (config.twilio)
+    await app.register(
+      twilioRoutes({ ...config.twilio, llm, queue, telephony: opts.telephony ?? telephonyFromEnv() }),
+    );
   return app;
 }

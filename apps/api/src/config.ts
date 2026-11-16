@@ -13,7 +13,7 @@ export interface ApiConfig {
   /** The browser call simulator (§5.4) exists outside production only. */
   simulator: boolean;
   /** Twilio voice webhooks; absent unless Twilio is configured. */
-  twilio: { authToken: string; publicApiOrigin: string } | null;
+  twilio: { authToken: string; publicApiOrigin: string; speechAudio: boolean } | null;
 }
 
 export function loadConfig(): ApiConfig {
@@ -34,6 +34,8 @@ export function loadConfig(): ApiConfig {
           authToken: process.env.TOMONI_TWILIO_AUTH_TOKEN,
           publicApiOrigin:
             process.env.TOMONI_PUBLIC_API_ORIGIN ?? `http://localhost:${process.env.API_PORT ?? 4000}`,
+          // Voice Lab audio stays off until counsel signs off (GO_LIVE_CHECKLIST, D-032).
+          speechAudio: process.env.TOMONI_SPEECH_AUDIO === 'on',
         }
       : null,
   };

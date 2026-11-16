@@ -1,14 +1,20 @@
 import { eq, sql } from 'drizzle-orm';
 import { systemScope } from '@tomoni/core';
 import type { JobData, JobName } from '@tomoni/contracts';
-import { pool, schema, withScope } from '@tomoni/db';
+import { LocalObjectStore, pool, schema, withScope } from '@tomoni/db';
 import { blueButtonFromEnv, ingestBundles, runEngine, today, type BlueButton } from '@tomoni/medicines';
 import { audit } from '@tomoni/db';
 import { callKey, isDue, line, SCRIPT_VERSION, telephonyFromEnv, type Telephony } from '@tomoni/voice';
 import type { Queue } from 'bullmq';
 import { MockERx, MockPharmacyPortal, runAction } from '@tomoni/agent';
 import { matchTrials } from '@tomoni/trials';
-import { extractPending, featureServiceFromEnv, labelOutcomes } from '@tomoni/research';
+import {
+  extractPending,
+  featureServiceFromEnv,
+  isPcm16Wav,
+  labelOutcomes,
+  storeAudio,
+} from '@tomoni/research';
 
 let bb: BlueButton | undefined;
 const blueButton = () => (bb ??= blueButtonFromEnv());
@@ -19,6 +25,8 @@ const publicApi = () =>
 
 /** Set by main.ts: jobs that fan out (the scheduler) enqueue through it. */
 export const deps: { queue: Queue | null } = { queue: null };
+let objects: LocalObjectStore | undefined;
+const store = () => (objects ??= new LocalObjectStore());
 
 export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> } = {
   async 'audit.seal'() {
@@ -240,7 +248,26 @@ export const handlers: { [N in JobName]: (data: JobData<N>) => Promise<unknown> 
   // Voice Lab: features for new samples, then hospital-stay labels. RLS shows consented rows only.
   'research.nightly': () =>
     withScope('worker', systemScope('research.nightly'), async (db) => ({
-      ...(await extractPending(db, featureServiceFromEnv())),
+      ...(await extractPending(db, featureServiceFromEnv(), store())),
       ...(await labelOutcomes(db)),
     })),
+
+  /**
+   * Voice Lab audio (D-032): fetch the speech task's recording, store it encrypted under the
+   * pseudonym, then delete the vendor's copy. Retried with backoff while the recording is still
+   * processing; idempotent, because a stored sample is skipped and a second delete is harmless.
+   */
+  async 'research.audio'({ sampleId, recordingRef }) {
+    const t = telephony();
+    const wav = await t.fetchRecording(recordingRef); // network call outside any DB transaction
+    if (!isPcm16Wav(wav)) {
+      await t.deleteRecording(recordingRef);
+      return { stored: false, reason: 'not 16-bit PCM WAV' };
+    }
+    const stored = await withScope('worker', systemScope('research.audio'), (db) =>
+      storeAudio(db, store(), sampleId, wav),
+    );
+    await t.deleteRecording(recordingRef).catch(() => undefined);
+    return { stored, bytes: stored ? wav.length : 0 };
+  },
 };

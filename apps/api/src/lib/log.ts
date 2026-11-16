@@ -47,13 +47,17 @@ export function loggerOptions(stream?: NodeJS.WritableStream): NonNullable<Fasti
         path: (req.url ?? '').split('?')[0],
       }),
       res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
-      err: (err: Error & { code?: string; statusCode?: number }) => ({
-        type: err.name,
-        code: err.code,
-        statusCode: err.statusCode,
-        message: scrub(err.message),
-        stack: scrub(err.stack ?? ''),
-      }),
+      // Also takes a non-Error (a string, a rejected value): logging must never throw.
+      err: (err: Error & { code?: string; statusCode?: number }) =>
+        err instanceof Error
+          ? {
+              type: err.name,
+              code: err.code,
+              statusCode: err.statusCode,
+              message: scrub(err.message ?? ''),
+              stack: scrub(err.stack ?? ''),
+            }
+          : { type: typeof err, message: scrub(String(err)), stack: '' },
     },
     hooks: {
       logMethod(args, method) {

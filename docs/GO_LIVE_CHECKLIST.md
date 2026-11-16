@@ -19,7 +19,7 @@ Nothing here is done. Every item must be signed off before the first real patien
 
 ## FDA strategy for Voice Lab
 - [ ] Regulatory counsel confirms that speech features are research-only and inform no clinical decision (rule 2.8, BUILD_PROMPT §2), and the path (for example a pre-submission) before any claim about detecting disease.
-- [ ] Audio capture (a Twilio `<Record>` step into the research bucket) is reviewed for consent and storage before it ships.
+- [ ] Audio capture is built and off (`TOMONI_SPEECH_AUDIO`, D-032). Counsel reviews consent, recording law and retention (including whether a withdrawal deletes audio) before it is turned on; the research bucket gets its production home and key.
 
 ## Clinical protocol sign-off (a US-licensed physician)
 - [ ] The safety phrase lists in six languages, the escalation paths, the 911 and 988 scripts, and India's 112 and Tele-MANAS 14416 scripts (rule 2.1, D-031).

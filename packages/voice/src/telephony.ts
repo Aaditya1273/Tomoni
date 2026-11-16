@@ -13,7 +13,19 @@ export interface Telephony {
     statusUrl: string;
   }): Promise<{ ref: string; dialed: boolean }>;
   sendSms(o: { to: string; body: string }): Promise<{ ref: string; sent: boolean }>;
+  /** Voice Lab (D-032): the caller's side only, while speech recognition keeps running. */
+  startRecording(callRef: string): Promise<{ ref: string }>;
+  /** Stops the call's current recording and returns its id. */
+  stopRecording(callRef: string): Promise<{ ref: string }>;
+  /** 16-bit PCM WAV. */
+  fetchRecording(recordingRef: string): Promise<Buffer>;
+  /** Removes the vendor's copy once ours is stored. */
+  deleteRecording(recordingRef: string): Promise<void>;
+  /** Removes every recording left on a call (a hang-up mid-task). Returns how many. */
+  deleteCallRecordings(callRef: string): Promise<number>;
 }
+
+const NO_AUDIO = () => Promise.reject(new Error('the mock telephony records no audio'));
 
 export class MockTelephony implements Telephony {
   readonly mode = 'mock' as const;
@@ -23,7 +35,18 @@ export class MockTelephony implements Telephony {
   async sendSms() {
     return { ref: 'mock-not-sent', sent: false };
   }
+  startRecording = NO_AUDIO;
+  stopRecording = NO_AUDIO;
+  fetchRecording = NO_AUDIO;
+  deleteRecording = NO_AUDIO;
+  deleteCallRecordings = NO_AUDIO;
 }
+
+const SID = /^(CA|RE)[0-9a-f]{32}$/;
+const sid = (s: string) => {
+  if (!SID.test(s)) throw new Error('twilio: bad sid');
+  return s;
+};
 
 const e164 = (us: string) => {
   const d = us.replace(/\D/g, '');
@@ -40,19 +63,46 @@ export class TwilioTelephony implements Telephony {
       throw new Error('Twilio calls real people: requires TOMONI_REAL_DATA_ENABLED=true');
   }
 
-  private async post(path: string, form: Record<string, string>) {
+  private async req(method: 'GET' | 'POST' | 'DELETE', path: string, form?: Record<string, string>) {
     const res = await this.http(`https://api.twilio.com/2010-04-01/Accounts/${this.cfg.accountSid}/${path}`, {
-      method: 'POST',
+      method,
       headers: {
         authorization: `Basic ${Buffer.from(`${this.cfg.accountSid}:${this.cfg.authToken}`).toString('base64')}`,
-        'content-type': 'application/x-www-form-urlencoded',
+        ...(form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}),
       },
-      body: new URLSearchParams(form),
-      signal: AbortSignal.timeout(15_000),
+      ...(form ? { body: new URLSearchParams(form) } : {}),
+      signal: AbortSignal.timeout(30_000),
       redirect: 'error',
     });
-    if (!res.ok) throw new Error(`twilio ${path}: HTTP ${res.status}`);
-    return (await res.json()) as { sid: string };
+    if (!res.ok) throw new Error(`twilio ${method} ${path.split('/')[0]}: HTTP ${res.status}`);
+    return res;
+  }
+  private async post(path: string, form: Record<string, string>) {
+    return (await (await this.req('POST', path, form)).json()) as { sid: string };
+  }
+
+  async startRecording(callRef: string) {
+    const r = await this.post(`Calls/${sid(callRef)}/Recordings.json`, {
+      RecordingTrack: 'inbound', // what Twilio hears from the patient, never Tomoni's own voice
+      RecordingChannels: 'mono',
+    });
+    return { ref: sid(r.sid) };
+  }
+  async stopRecording(callRef: string) {
+    const r = await this.post(`Calls/${sid(callRef)}/Recordings/Twilio.CURRENT.json`, { Status: 'stopped' });
+    return { ref: sid(r.sid) };
+  }
+  async fetchRecording(recordingRef: string) {
+    return Buffer.from(await (await this.req('GET', `Recordings/${sid(recordingRef)}.wav`)).arrayBuffer());
+  }
+  async deleteRecording(recordingRef: string) {
+    await this.req('DELETE', `Recordings/${sid(recordingRef)}.json`);
+  }
+  async deleteCallRecordings(callRef: string) {
+    const r = await this.req('GET', `Calls/${sid(callRef)}/Recordings.json`);
+    const { recordings = [] } = (await r.json()) as { recordings?: { sid: string }[] };
+    for (const x of recordings) await this.deleteRecording(x.sid);
+    return recordings.length;
   }
 
   async placeCall(o: { to: string; answerUrl: string; statusUrl: string }) {
