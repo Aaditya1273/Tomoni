@@ -5,8 +5,9 @@
  * schema; rows that don't conform are dropped and counted, never guessed at (SECURITY: loaders).
  */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 import { z } from 'zod';
 
 const yn = z.enum(['Y', 'N']).transform((v) => v === 'Y');
@@ -71,16 +72,59 @@ export function parseDelimited<S extends z.ZodType>(text: string, schema: S, sep
   const rows: z.output<S>[] = [];
   let dropped = 0;
   for (const cells of lines) {
-    if (cells.length !== header.length) {
-      dropped++;
-      continue;
-    }
-    const obj = Object.fromEntries(header.map((h, i) => [h, cells[i]!.trim()]));
-    const r = schema.safeParse(obj);
-    if (r.success) rows.push(r.data);
+    const r = parseRow(header, cells, schema);
+    if (r) rows.push(r);
     else dropped++;
   }
   return { rows, dropped };
+}
+
+function parseRow<S extends z.ZodType>(header: string[], cells: string[], schema: S): z.output<S> | null {
+  if (cells.length !== header.length) return null;
+  const r = schema.safeParse(Object.fromEntries(header.map((h, i) => [h, cells[i]!.trim()])));
+  return r.success ? r.data : null;
+}
+
+/**
+ * A pipe-delimited file, streamed: valid rows in batches, so a multi-gigabyte CMS release never
+ * sits in memory. `counts` fills in as it goes.
+ */
+export async function* streamDelimited<S extends z.ZodType>(
+  file: string,
+  schema: S,
+  counts = { rows: 0, dropped: 0 },
+  batch = 1000,
+): AsyncGenerator<z.output<S>[]> {
+  const lines = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
+  let header: string[] | null = null;
+  let out: z.output<S>[] = [];
+  for await (const l of lines) {
+    if (l.trim() === '' || l.startsWith('#')) continue;
+    const cells = l.split('|');
+    if (!header) {
+      header = cells.map((h) => h.trim());
+      continue;
+    }
+    const r = parseRow(header, cells, schema);
+    if (!r) {
+      counts.dropped++;
+      continue;
+    }
+    counts.rows++;
+    out.push(r);
+    if (out.length >= batch) {
+      yield out;
+      out = [];
+    }
+  }
+  if (out.length) yield out;
+}
+
+/** sha256 over the files in order, streamed (the same digest as hashing their joined text). */
+export async function sha256Files(files: string[]) {
+  const hash = createHash('sha256');
+  for (const f of files) for await (const chunk of createReadStream(f)) hash.update(chunk as Buffer);
+  return hash.digest();
 }
 
 /** RFC 4180 CSV (quoted fields, doubled quotes, CRLF). Blank lines and `#` comment lines are skipped. */
@@ -126,27 +170,16 @@ export const Manifest = z.strictObject({
 });
 export type Manifest = z.infer<typeof Manifest>;
 
-export interface CmsRelease {
-  manifest: Manifest;
-  sha256: Buffer;
-  plans: Parsed<z.output<typeof PlanRow>>;
-  formulary: Parsed<z.output<typeof FormularyRow>>;
-  pricing: Parsed<z.output<typeof PricingRow>>;
-}
-
-/** Read a release directory: manifest.json plus the three CMS files it names. */
-export function readCmsRelease(dir: string): CmsRelease {
+/** The release's manifest and its three files, in hashing order. */
+export function cmsReleaseFiles(dir: string) {
   const manifest = Manifest.parse(JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf8')));
-  const hash = createHash('sha256');
-  const read = (f: string) => {
-    const text = readFileSync(path.join(dir, path.basename(f)), 'utf8');
-    hash.update(text);
-    return text;
+  const at = (f: string) => path.join(dir, path.basename(f));
+  return {
+    manifest,
+    plan: at(manifest.files.plan),
+    formulary: at(manifest.files.formulary),
+    pricing: at(manifest.files.pricing),
   };
-  const plans = parseDelimited(read(manifest.files.plan), PlanRow);
-  const formulary = parseDelimited(read(manifest.files.formulary), FormularyRow);
-  const pricing = parseDelimited(read(manifest.files.pricing), PricingRow);
-  return { manifest, sha256: hash.digest(), plans, formulary, pricing };
 }
 
 export const planKey = (p: { contractId: string; planId: string; segmentId: string }) =>

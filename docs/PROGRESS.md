@@ -122,7 +122,7 @@
 - **Call scripts for gu, ta, pa and bn** fall back to English (D-025). All new Hindi needs native review.
 - **No real pharmacy or e-prescribing partner.** Every agent action runs against labeled mocks. A real partner (Surescripts-certified) is a Go-Live item.
 - **Real Blue Button sandbox not exercised end to end.** It needs client credentials from the CMS developer sandbox (`TOMONI_BB_CLIENT_ID` / `SECRET`, `TOMONI_ADAPTER_BLUEBUTTON=real`). The adapter is tested against a fake server.
-- **No full CMS release loaded yet.** The loader reads the real file format, but only the bundled synthetic sample has been loaded. A full release (gigabytes, plus the pharmacy network file, which isn't loaded at all) needs a streaming loader before production.
+- **No full CMS release loaded yet.** The loader streams the real file format in batches and loads a release in one transaction (1 million pricing rows stream with a 48 MB peak heap), but only the bundled synthetic sample has been loaded. The pharmacy network file isn't loaded at all.
 - **Run-out warnings depend on knowing refills.** Real PDE data rarely has them (D-018). The Phase 3 refill-status skill fills that gap.
 - **Medicine names** are simplified from RxNorm by a heuristic.
 - **Hindi copy:** the new strings also need native review. The other four Indic locales fall back to English.

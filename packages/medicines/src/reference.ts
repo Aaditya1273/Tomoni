@@ -10,7 +10,16 @@ import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type Db } from '@tomoni/db';
-import { parseDelimited, planKey, readCmsRelease } from './cms';
+import {
+  cmsReleaseFiles,
+  FormularyRow,
+  parseDelimited,
+  PlanRow,
+  planKey,
+  PricingRow,
+  sha256Files,
+  streamDelimited,
+} from './cms';
 import type { SynthDrug } from './bluebutton/synth';
 
 export const SAMPLES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'samples');
@@ -71,78 +80,130 @@ export async function loadPharmacies(db: Db, file = path.join(SAMPLES, 'pharmaci
   return rows.length;
 }
 
-/** Returns the new version id, or null when this exact release was already loaded. */
+/**
+ * Returns the new version id, or null when this exact release was already loaded. Streams the
+ * files (a full CMS release is gigabytes) and loads in one transaction, so a crash mid-load
+ * leaves nothing behind, never a version marked loaded with half its rows.
+ */
 export async function loadCmsRelease(db: Db, dir: string, loadedBy: string): Promise<string | null> {
-  const r = readCmsRelease(dir);
-  const m = r.manifest;
-  const versionId = await newVersion(db, {
-    kind: 'cms_partd',
-    label: m.label,
-    sourceUrl: m.sourceUrl,
-    sha256: r.sha256,
-    effectiveDate: m.effectiveDate,
-    rowCount: r.plans.rows.length + r.formulary.rows.length + r.pricing.rows.length,
-    droppedCount: r.plans.dropped + r.formulary.dropped + r.pricing.dropped,
-    loadedBy,
-  });
-  if (!versionId) return null;
+  const f = cmsReleaseFiles(dir);
+  const m = f.manifest;
+  const sha256 = await sha256Files([f.plan, f.formulary, f.pricing]);
+  const seen = await db
+    .select({ id: schema.dataFileVersion.id })
+    .from(schema.dataFileVersion)
+    .where(sql`sha256 = ${sha256}`);
+  if (seen.length) return null;
 
-  await db.insert(schema.plan).values(
-    r.plans.rows.map((p) => ({
-      versionId,
-      year: m.year,
-      contractId: p.CONTRACT_ID,
-      planId: p.PLAN_ID,
-      segmentId: p.SEGMENT_ID,
-      name: p.PLAN_NAME,
-      type: p.CONTRACT_ID.startsWith('S') ? ('pdp' as const) : ('mapd' as const),
-      premiumCents: Math.round(p.PREMIUM * 100),
-      deductibleCents: Math.round(p.DEDUCTIBLE * 100),
-      formularyId: p.FORMULARY_ID,
-    })),
-  );
-  // One row per (formulary, rxcui): the file lists every NDC; tiers are per RxCUI.
-  const entries = new Map(
-    r.formulary.rows.map((f) => [
-      `${f.FORMULARY_ID}|${f.RXCUI}`,
-      {
-        versionId,
-        formularyId: f.FORMULARY_ID,
-        rxcui: f.RXCUI,
-        tier: f.TIER_LEVEL_VALUE,
-        priorAuth: f.PRIOR_AUTHORIZATION_YN,
-        stepTherapy: f.STEP_THERAPY_YN,
-        quantityLimit: f.QUANTITY_LIMIT_YN,
-      },
-    ]),
-  );
-  for (const c of chunks([...entries.values()])) await db.insert(schema.formularyEntry).values(c);
-  // Names come from the drug list; the CMS files carry none.
-  const ndcs = [...new Map(r.formulary.rows.map((f) => [f.NDC, f.RXCUI])).entries()];
-  for (const c of chunks(ndcs))
-    await db
-      .insert(schema.drug)
-      .values(c.map(([ndc, rxcui]) => ({ ndc, rxcui, name: `RxCUI ${rxcui}` })))
-      .onConflictDoNothing();
-
-  const rxOfNdc = new Map(r.formulary.rows.map((f) => [f.NDC, f.RXCUI]));
-  const prices = new Map<string, typeof schema.drugPrice.$inferInsert>();
-  for (const p of r.pricing.rows) {
-    const rxcui = rxOfNdc.get(p.NDC);
-    if (!rxcui) continue;
-    const k = `${planKey({ contractId: p.CONTRACT_ID, planId: p.PLAN_ID, segmentId: p.SEGMENT_ID })}|${rxcui}|${p.DAYS_SUPPLY}`;
-    prices.set(k, {
-      versionId,
-      contractId: p.CONTRACT_ID,
-      planId: p.PLAN_ID,
-      segmentId: p.SEGMENT_ID,
-      rxcui,
-      daysSupply: p.DAYS_SUPPLY,
-      unitCost: String(p.UNIT_COST),
+  return db.transaction(async (tx) => {
+    const versionId = await newVersion(tx, {
+      kind: 'cms_partd',
+      label: m.label,
+      sourceUrl: m.sourceUrl,
+      sha256,
+      effectiveDate: m.effectiveDate,
+      rowCount: 0,
+      droppedCount: 0,
+      loadedBy,
     });
-  }
-  for (const c of chunks([...prices.values()])) await db.insert(schema.drugPrice).values(c);
-  return versionId;
+    if (!versionId) return null;
+    const counts = { rows: 0, dropped: 0 };
+
+    for await (const batch of streamDelimited(f.plan, PlanRow, counts))
+      await tx.insert(schema.plan).values(
+        batch.map((p) => ({
+          versionId,
+          year: m.year,
+          contractId: p.CONTRACT_ID,
+          planId: p.PLAN_ID,
+          segmentId: p.SEGMENT_ID,
+          name: p.PLAN_NAME,
+          type: p.CONTRACT_ID.startsWith('S') ? ('pdp' as const) : ('mapd' as const),
+          premiumCents: Math.round(p.PREMIUM * 100),
+          deductibleCents: Math.round(p.DEDUCTIBLE * 100),
+          formularyId: p.FORMULARY_ID,
+        })),
+      );
+
+    // One row per (formulary, rxcui): the file lists every NDC; tiers are per RxCUI, last row wins.
+    // NDC → RxCUI stays in memory (tens of thousands of drugs) for pricing and drug names.
+    const rxOfNdc = new Map<string, string>();
+    for await (const batch of streamDelimited(f.formulary, FormularyRow, counts)) {
+      const entries = new Map<string, typeof schema.formularyEntry.$inferInsert>();
+      for (const r of batch) {
+        rxOfNdc.set(r.NDC, r.RXCUI);
+        entries.set(`${r.FORMULARY_ID}|${r.RXCUI}`, {
+          versionId,
+          formularyId: r.FORMULARY_ID,
+          rxcui: r.RXCUI,
+          tier: r.TIER_LEVEL_VALUE,
+          priorAuth: r.PRIOR_AUTHORIZATION_YN,
+          stepTherapy: r.STEP_THERAPY_YN,
+          quantityLimit: r.QUANTITY_LIMIT_YN,
+        });
+      }
+      await tx
+        .insert(schema.formularyEntry)
+        .values([...entries.values()])
+        .onConflictDoUpdate({
+          target: [
+            schema.formularyEntry.versionId,
+            schema.formularyEntry.formularyId,
+            schema.formularyEntry.rxcui,
+          ],
+          set: {
+            tier: sql`excluded.tier`,
+            priorAuth: sql`excluded.prior_auth`,
+            stepTherapy: sql`excluded.step_therapy`,
+            quantityLimit: sql`excluded.quantity_limit`,
+          },
+        });
+    }
+    // Names come from the drug list; the CMS files carry none.
+    for (const c of chunks([...rxOfNdc.entries()]))
+      await tx
+        .insert(schema.drug)
+        .values(c.map(([ndc, rxcui]) => ({ ndc, rxcui, name: `RxCUI ${rxcui}` })))
+        .onConflictDoNothing();
+
+    for await (const batch of streamDelimited(f.pricing, PricingRow, counts)) {
+      const prices = new Map<string, typeof schema.drugPrice.$inferInsert>();
+      for (const p of batch) {
+        const rxcui = rxOfNdc.get(p.NDC);
+        if (!rxcui) continue;
+        const k = `${planKey({ contractId: p.CONTRACT_ID, planId: p.PLAN_ID, segmentId: p.SEGMENT_ID })}|${rxcui}|${p.DAYS_SUPPLY}`;
+        prices.set(k, {
+          versionId,
+          contractId: p.CONTRACT_ID,
+          planId: p.PLAN_ID,
+          segmentId: p.SEGMENT_ID,
+          rxcui,
+          daysSupply: p.DAYS_SUPPLY,
+          unitCost: String(p.UNIT_COST),
+        });
+      }
+      if (prices.size)
+        await tx
+          .insert(schema.drugPrice)
+          .values([...prices.values()])
+          .onConflictDoUpdate({
+            target: [
+              schema.drugPrice.versionId,
+              schema.drugPrice.contractId,
+              schema.drugPrice.planId,
+              schema.drugPrice.segmentId,
+              schema.drugPrice.rxcui,
+              schema.drugPrice.daysSupply,
+            ],
+            set: { unitCost: sql`excluded.unit_cost` },
+          });
+    }
+    await tx
+      .update(schema.dataFileVersion)
+      .set({ rowCount: counts.rows, droppedCount: counts.dropped })
+      .where(sql`id = ${versionId}`);
+    return versionId;
+  });
 }
 
 export async function loadShortages(

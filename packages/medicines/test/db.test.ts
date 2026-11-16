@@ -1,4 +1,5 @@
-import { mkdtempSync, writeFileSync, cpSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, writeFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -8,7 +9,9 @@ import { closePools, hashFor, ownerDb, schema, withScope } from '@tomoni/db';
 import {
   applyPbmMapping,
   ingestBundles,
+  cmsReleaseFiles,
   loadCmsRelease,
+  sha256Files,
   loadSamples,
   MockBlueButton,
   mockBeneficiaryId,
@@ -113,6 +116,49 @@ describe('reference loaders', () => {
           .where(sql`version_id = ${id}`)
       ).map((p) => p.name),
     ).toEqual(['Ok Plan']);
+  });
+
+  it('streams a release bigger than a batch: last row wins across batches, same hash, all or nothing', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'cms-'));
+    cpSync(path.join(SAMPLES, 'cms-2026'), dir, { recursive: true });
+    const head = 'CONTRACT_ID|PLAN_ID|SEGMENT_ID|NDC|DAYS_SUPPLY|UNIT_COST\n';
+    // 2,500 rows for one price key: three batches, each overwriting the last.
+    const rows = Array.from({ length: 2500 }, (_, i) => `S9901|001|0|99000000101|1|${(i + 1) / 1000}\n`);
+    writeFileSync(path.join(dir, 'pricing.txt'), head + rows.join(''));
+    const f = cmsReleaseFiles(dir);
+    const joined = [f.plan, f.formulary, f.pricing].map((x) => readFileSync(x, 'utf8')).join('');
+    expect(
+      (await sha256Files([f.plan, f.formulary, f.pricing])).equals(
+        createHash('sha256').update(joined).digest(),
+      ),
+    ).toBe(true);
+
+    // A failure mid-load leaves no version and no rows behind.
+    const bad = mkdtempSync(path.join(tmpdir(), 'cms-'));
+    cpSync(dir, bad, { recursive: true });
+    writeFileSync(path.join(bad, 'pricing.txt'), head + rows.join('') + 'S9901|001|0|99000000101|1|0.5\n');
+    const versions = async () => (await db.select().from(schema.dataFileVersion)).length;
+    const before = await versions();
+    await expect(
+      db.transaction(async (tx) => {
+        await loadCmsRelease(tx, bad, 'test');
+        throw new Error('crash');
+      }),
+    ).rejects.toThrow('crash');
+    expect(await versions()).toBe(before);
+
+    const id = await loadCmsRelease(db, dir, 'test');
+    const [v] = await db
+      .select()
+      .from(schema.dataFileVersion)
+      .where(sql`id = ${id}`);
+    expect(v!.rowCount).toBeGreaterThanOrEqual(2500);
+    const prices = await db
+      .select()
+      .from(schema.drugPrice)
+      .where(sql`version_id = ${id} AND days_supply = 30 AND contract_id = 'S9901'`);
+    expect(prices.filter((p) => p.rxcui === '861007').map((p) => Number(p.unitCost))).toEqual([2.5]);
+    expect(await loadCmsRelease(db, dir, 'test')).toBeNull();
   });
 });
 
